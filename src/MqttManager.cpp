@@ -112,6 +112,7 @@ void MqttManager::publishDiscoveryMessage()
     effectList.add("Rainbow");
     effectList.add("Smooth wave");
     effectList.add("Sparkle");
+    effectList.add("Tree");
 
     doc["schema"] = "json";
     doc["optimistic"] = true;
