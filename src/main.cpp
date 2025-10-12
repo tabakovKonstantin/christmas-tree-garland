@@ -5,11 +5,37 @@
 #include "MqttManager.h"
 #include "LedControl.h"
 #include <ESP8266WiFi.h>
-#define FLASH_BUTTON_PIN 0 
+
+#define RESET_FLAG_FILE "/reset.flag"
+#define DOUBLE_RESET_TIMEOUT 5000
 
 EffectManager effectManager;
 LedControl ledControl(effectManager);
 MqttManager mqttManager(ledControl);
+
+void checkDoubleReset()
+{
+  if (LittleFS.exists(RESET_FLAG_FILE))
+  {
+    Serial.println("Double reset detected. Erasing configuration...");
+    ConfigManager::eraseConfig();
+    LittleFS.remove(RESET_FLAG_FILE);
+    delay(1000);
+    ESP.restart();
+  }
+  else
+  {
+    File flag = LittleFS.open(RESET_FLAG_FILE, "w");
+    if (flag)
+    {
+      flag.close();
+      Serial.println("First reset detected. Waiting for second reset...");
+      delay(DOUBLE_RESET_TIMEOUT);
+      LittleFS.remove(RESET_FLAG_FILE);
+      Serial.println("No second reset detected.");
+    }
+  }
+}
 
 void setup()
 {
@@ -17,18 +43,18 @@ void setup()
 
   if (!FileManager::begin())
   {
-    Serial.println("Ошибка инициализации файловой системы!");
+    Serial.println("File system initialization failed");
     return;
   }
 
+  checkDoubleReset();
+
   ledControl.initLEDs();
 
-  Serial.println("!!!!");
   initWiFi();
 
   if (WiFi.getMode() == WIFI_STA)
   {
-    Serial.println("Currently in Station mode (STA)");
     mqttManager.init();
   }
 }
@@ -36,10 +62,4 @@ void setup()
 void loop()
 {
   FastLED.show();
-  
-  // bool reading = digitalRead(FLASH_BUTTON_PIN) == LOW;
-  // if (reading) {
-  //  ConfigManager::eraseConfig();
-  // }
-
 }
