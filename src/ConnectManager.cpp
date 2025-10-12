@@ -1,7 +1,9 @@
 #include "ConnectManager.h"
 #include "ConfigManager.h"
+#include "LedControl.h"
 #include <ESP8266WiFi.h>
 
+extern LedControl ledControl;
 Config config;
 AsyncWebServer server(80);
 
@@ -17,7 +19,6 @@ void notFound(AsyncWebServerRequest *request)
     request->send(404, "text/plain", "Not found");
 }
 
-// Escape HTML special characters in SSID names
 static String htmlEscape(const String &input)
 {
     String s = input;
@@ -57,13 +58,14 @@ void initWiFi()
             Serial.println("\nConnected to Wi-Fi!");
             Serial.print("IP Address: ");
             Serial.println(WiFi.localIP());
+            ledControl.showEventNotification(CRGB::Green, 8, 300, "Wi-Fi connected successfully");
             return;
         }
 
         Serial.println("\nFailed to connect to Wi-Fi.");
+        ledControl.showEventNotification(CRGB::Red, 8, 300, "Wi-Fi connection failed");
     }
 
-    // Failed to connect — scan available networks
     Serial.println("Scanning Wi-Fi networks...");
     WiFi.mode(WIFI_STA);
     int n = WiFi.scanNetworks();
@@ -78,7 +80,6 @@ void initWiFi()
         Serial.printf("%d: %s (RSSI %d) ENC:%d\n", i, ssid.c_str(), rssi, encryption);
     }
 
-    // Start Access Point
     WiFi.mode(WIFI_AP);
     WiFi.softAP("esp-captive");
     Serial.print("AP IP Address: ");
@@ -90,7 +91,6 @@ void initWiFi()
         html += "<form action='/config' method='POST'>";
         html += "<h3>Wi-Fi</h3>";
 
-        // Dropdown for scanned SSIDs
         html += "SSID: <select name='ssid'>";
         if (n <= 0) {
             html += "<option value='' disabled selected>-- no networks found --</option>";
@@ -104,7 +104,6 @@ void initWiFi()
         }
         html += "</select><br>";
 
-        // Manual input for hidden or custom SSIDs
         html += "<br><label>Or enter hidden/custom SSID manually:</label><br>";
         html += "Manual SSID: <input type='text' name='ssid_manual'><br>";
 
@@ -140,7 +139,7 @@ void handleConfigRequest(AsyncWebServerRequest *request)
     if (request->hasParam("ssid_manual", true))
         manualSSID = request->getParam("ssid_manual", true)->value();
     if (manualSSID.length() > 0)
-        ssid = manualSSID; // Manual SSID overrides dropdown
+        ssid = manualSSID;
     if (request->hasParam("password", true))
         password = request->getParam("password", true)->value();
     if (request->hasParam("mqtt_url", true))

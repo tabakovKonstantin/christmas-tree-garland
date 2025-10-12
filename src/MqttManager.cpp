@@ -1,11 +1,14 @@
 #include "MqttManager.h"
 #include "ConfigManager.h"
+#include "LedControl.h"
 #include <Ticker.h>
 #include <ArduinoJson.h>
 #include <ESP8266WiFi.h>
 
 AsyncMqttClient mqttClient;
 Ticker mqttReconnectTimer;
+
+extern LedControl ledControl;
 
 MqttManager::MqttManager(LedControl &led_Control) : ledControl(led_Control)
 {
@@ -33,6 +36,7 @@ void MqttManager::init()
     {
         Serial.println("Invalid IP address format.");
         Serial.println(config.mqttServer);
+        ledControl.showEventNotification(CRGB::Red, 8, 300, "MQTT connection error");
         return;
     }
 
@@ -63,6 +67,7 @@ void MqttManager::onMqttConnect(bool sessionPresent)
     Serial.println("Connected to MQTT.");
     Serial.print("Session present: ");
     Serial.println(sessionPresent);
+    ledControl.showEventNotification(CRGB::Blue, 8, 300, "MQTT connected");
 
     mqttClient.subscribe(getCommandTopic().c_str(), 2);
     publishDiscoveryMessage();
@@ -71,6 +76,7 @@ void MqttManager::onMqttConnect(bool sessionPresent)
 void MqttManager::onMqttDisconnect(AsyncMqttClientDisconnectReason reason)
 {
     Serial.println("Disconnected from MQTT.");
+    ledControl.showEventNotification(CRGB::Red, 8, 300, "MQTT disconnected");
     if (WiFi.isConnected())
     {
         mqttReconnectTimer.once(2, [this]()
@@ -101,39 +107,7 @@ void MqttManager::onMqttMessage(char *topic, char *payload, AsyncMqttClientMessa
     Serial.print("Failed to parse JSON message.");
 }
 
-void MqttManager::publishDiscoveryMessage()
-{
-    JsonDocument doc;
-    doc["name"] = "Christmas garland";
-    doc["unique_id"] = getProductId();
-    doc["command_topic"] = getCommandTopic();
-
-    JsonObject device = doc["device"].to<JsonObject>();
-    JsonArray identifiers = device["identifiers"].to<JsonArray>();
-    identifiers.add(getProductId());
-    device["manufacturer"] = "Tabakov";
-    device["model"] = "Home";
-    device["name"] = "Christmas garland";
-    device["sw_version"] = "0.0.1";
-
-    JsonArray colorModes = doc["supported_color_modes"].to<JsonArray>();
-    colorModes.add("rgb");
-
-    doc["effect"] = true;
-    JsonArray effectList = doc["effect_list"].to<JsonArray>();
-    effectList.add("Rainbow");
-    effectList.add("Smooth wave");
-    effectList.add("Sparkle");
-    effectList.add("Tree");
-
-    doc["schema"] = "json";
-    doc["optimistic"] = true;
-
-    String message;
-    serializeJson(doc, message);
-
-    mqttClient.publish(getDiscoveryTopic().c_str(), 1, true, message.c_str());
-}
+// ----------- Added full missing implementations -----------
 
 String MqttManager::getProductId()
 {
@@ -156,4 +130,43 @@ String MqttManager::getCommandTopic()
     char commandTopic[100];
     snprintf(commandTopic, sizeof(commandTopic), COMMAND_TOPIC_TEMPLATE, productId.c_str());
     return String(commandTopic);
+}
+
+void MqttManager::publishDiscoveryMessage()
+{
+    JsonDocument doc;
+    doc["name"] = "Christmas Garland";
+    doc["unique_id"] = getProductId();
+    doc["command_topic"] = getCommandTopic();
+
+    JsonObject device = doc["device"].to<JsonObject>();
+    JsonArray identifiers = device["identifiers"].to<JsonArray>();
+    identifiers.add(getProductId());
+    device["manufacturer"] = "Tabakov";
+    device["model"] = "Home";
+    device["name"] = "Christmas Garland";
+    device["sw_version"] = "0.0.2";
+
+    JsonArray colorModes = doc["supported_color_modes"].to<JsonArray>();
+    colorModes.add("rgb");
+
+    doc["effect"] = true;
+    JsonArray effectList = doc["effect_list"].to<JsonArray>();
+    effectList.add("Rainbow");
+    effectList.add("Smooth wave");
+    effectList.add("Sparkle");
+    effectList.add("Tree");
+
+    doc["schema"] = "json";
+    doc["optimistic"] = true;
+
+    String message;
+    serializeJson(doc, message);
+
+    String topic = getDiscoveryTopic();
+    mqttClient.publish(topic.c_str(), 1, true, message.c_str());
+
+    Serial.println("Published Home Assistant discovery message to:");
+    Serial.println(topic);
+    Serial.println(message);
 }

@@ -14,6 +14,41 @@ void LedControl::initLEDs()
     FastLED.show();
 }
 
+void LedControl::eventFlash()
+{
+    if (eventStep >= eventTotalFlashes * 2)
+    {
+        fill_solid(leds, NUM_LEDS, CRGB::Black);
+        FastLED.show();
+        eventTicker.detach();
+        Serial.println("Event notification finished.");
+        return;
+    }
+
+    if (eventStep % 2 == 0)
+    {
+        fill_solid(leds, NUM_LEDS, eventColor);
+    }
+    else
+    {
+        fill_solid(leds, NUM_LEDS, CRGB::Black);
+    }
+
+    FastLED.show();
+    eventStep++;
+}
+
+void LedControl::showEventNotification(const CRGB& color, int flashes, int delayMs, const String& message)
+{
+    Serial.print("Event notification: ");
+    Serial.println(message);
+    eventTicker.detach(); // Stop any existing animation
+    eventStep = 0;
+    eventTotalFlashes = flashes;
+    eventColor = color;
+    eventTicker.attach_ms(delayMs, [this]() { this->eventFlash(); });
+}
+
 void LedControl::changeState(const Payload &payload)
 {
     Serial.println("Applying new state...");

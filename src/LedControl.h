@@ -2,6 +2,7 @@
 #define LED_CONTROL_H
 
 #include <FastLED.h>
+#include <Ticker.h>
 #include "effect/EffectManager.h"
 #include "Payload.h"
 
@@ -16,6 +17,12 @@ class LedControl {
 private:
     CRGB leds[NUM_LEDS];
     EffectManager& effectManager;
+    Ticker eventTicker;
+    int eventStep = 0;
+    int eventTotalFlashes = 0;
+    CRGB eventColor;
+
+    void eventFlash();
 
 public:
     LedControl(EffectManager& manager);
@@ -24,6 +31,9 @@ public:
     void setLEDColor(uint32_t color);
     void setLEDBrightness(int brightness);
     void setLEDEffect(String effect);
+
+    // Unified asynchronous event notification
+    void showEventNotification(const CRGB& color, int flashes = 8, int delayMs = 300, const String& message = "");
 };
 
 #endif
