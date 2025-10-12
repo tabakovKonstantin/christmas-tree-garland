@@ -10,9 +10,7 @@ Ticker mqttReconnectTimer;
 
 extern LedControl ledControl;
 
-MqttManager::MqttManager(LedControl &led_Control) : ledControl(led_Control)
-{
-}
+MqttManager::MqttManager(LedControl &led_Control) : ledControl(led_Control) {}
 
 void MqttManager::init()
 {
@@ -36,7 +34,7 @@ void MqttManager::init()
     {
         Serial.println("Invalid IP address format.");
         Serial.println(config.mqttServer);
-        ledControl.showEventNotification(CRGB::Red, 8, 300, "MQTT connection error");
+        ledControl.showError();
         return;
     }
 
@@ -67,7 +65,7 @@ void MqttManager::onMqttConnect(bool sessionPresent)
     Serial.println("Connected to MQTT.");
     Serial.print("Session present: ");
     Serial.println(sessionPresent);
-    ledControl.showEventNotification(CRGB::Blue, 8, 300, "MQTT connected");
+    ledControl.showSuccess();
 
     mqttClient.subscribe(getCommandTopic().c_str(), 2);
     publishDiscoveryMessage();
@@ -76,7 +74,7 @@ void MqttManager::onMqttConnect(bool sessionPresent)
 void MqttManager::onMqttDisconnect(AsyncMqttClientDisconnectReason reason)
 {
     Serial.println("Disconnected from MQTT.");
-    ledControl.showEventNotification(CRGB::Red, 8, 300, "MQTT disconnected");
+    ledControl.showError();
     if (WiFi.isConnected())
     {
         mqttReconnectTimer.once(2, [this]()
@@ -84,89 +82,54 @@ void MqttManager::onMqttDisconnect(AsyncMqttClientDisconnectReason reason)
     }
 }
 
-void MqttManager::onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties properties, size_t len, size_t index, size_t total)
+void MqttManager::onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties properties,
+                                size_t len, size_t index, size_t total)
 {
-    Serial.println();
-    Serial.println("Message received.");
-    Serial.print("  topic: ");
+    String message;
+    for (size_t i = 0; i < len; i++)
+        message += payload[i];
+
+    Serial.print("Received MQTT message on topic: ");
     Serial.println(topic);
-    Serial.print("  payload: ");
-
-    String message = String((char *)payload);
     Serial.println(message);
-
-    Payload incomingPayload;
-    if (incomingPayload.fromJson(message))
-    {
-        Serial.print("  parsed JSON: ");
-        Serial.println(incomingPayload.toJson());
-        ledControl.changeState(incomingPayload);
-        return;
-    }
-
-    Serial.print("Failed to parse JSON message.");
-}
-
-// ----------- Added full missing implementations -----------
-
-String MqttManager::getProductId()
-{
-    char chipIdStr[11];
-    itoa(ESP.getChipId(), chipIdStr, 10);
-    return "garland-" + String(chipIdStr);
-}
-
-String MqttManager::getDiscoveryTopic()
-{
-    String productId = getProductId();
-    char discoveryTopic[100];
-    snprintf(discoveryTopic, sizeof(discoveryTopic), DISCOVERY_TOPIC_TEMPLATE, productId.c_str());
-    return String(discoveryTopic);
-}
-
-String MqttManager::getCommandTopic()
-{
-    String productId = getProductId();
-    char commandTopic[100];
-    snprintf(commandTopic, sizeof(commandTopic), COMMAND_TOPIC_TEMPLATE, productId.c_str());
-    return String(commandTopic);
 }
 
 void MqttManager::publishDiscoveryMessage()
 {
+    String discoveryTopic = getDiscoveryTopic();
     JsonDocument doc;
-    doc["name"] = "Christmas Garland";
+
+    doc["name"] = getProductId();
     doc["unique_id"] = getProductId();
     doc["command_topic"] = getCommandTopic();
-
-    JsonObject device = doc["device"].to<JsonObject>();
-    JsonArray identifiers = device["identifiers"].to<JsonArray>();
-    identifiers.add(getProductId());
-    device["manufacturer"] = "Tabakov";
-    device["model"] = "Home";
-    device["name"] = "Christmas Garland";
-    device["sw_version"] = "0.0.2";
+    doc["schema"] = "json";
+    doc["brightness"] = true;
+    doc["effect"] = true;
 
     JsonArray colorModes = doc["supported_color_modes"].to<JsonArray>();
     colorModes.add("rgb");
 
-    doc["effect"] = true;
-    JsonArray effectList = doc["effect_list"].to<JsonArray>();
-    effectList.add("Rainbow");
-    effectList.add("Smooth wave");
-    effectList.add("Sparkle");
-    effectList.add("Tree");
+    String payload;
+    serializeJson(doc, payload);
+    mqttClient.publish(discoveryTopic.c_str(), 0, true, payload.c_str());
+    Serial.println("Discovery message published.");
+}
 
-    doc["schema"] = "json";
-    doc["optimistic"] = true;
+String MqttManager::getProductId()
+{
+    return String(ESP.getChipId(), HEX);
+}
 
-    String message;
-    serializeJson(doc, message);
+String MqttManager::getDiscoveryTopic()
+{
+    char topic[128];
+    snprintf(topic, sizeof(topic), DISCOVERY_TOPIC_TEMPLATE, getProductId().c_str());
+    return String(topic);
+}
 
-    String topic = getDiscoveryTopic();
-    mqttClient.publish(topic.c_str(), 1, true, message.c_str());
-
-    Serial.println("Published Home Assistant discovery message to:");
-    Serial.println(topic);
-    Serial.println(message);
+String MqttManager::getCommandTopic()
+{
+    char topic[128];
+    snprintf(topic, sizeof(topic), COMMAND_TOPIC_TEMPLATE, getProductId().c_str());
+    return String(topic);
 }

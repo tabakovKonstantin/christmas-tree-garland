@@ -23,6 +23,7 @@ private:
     CRGB eventColor;
 
     void eventFlash();
+    void showEventNotification(const CRGB& color, int flashes = 8, int delayMs = 300);
 
 public:
     LedControl(EffectManager& manager);
@@ -32,8 +33,8 @@ public:
     void setLEDBrightness(int brightness);
     void setLEDEffect(String effect);
 
-    // Unified asynchronous event notification
-    void showEventNotification(const CRGB& color, int flashes = 8, int delayMs = 300, const String& message = "");
+    void showSuccess();
+    void showError();
 };
 
 #endif

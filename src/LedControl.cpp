@@ -21,7 +21,6 @@ void LedControl::eventFlash()
         fill_solid(leds, NUM_LEDS, CRGB::Black);
         FastLED.show();
         eventTicker.detach();
-        Serial.println("Event notification finished.");
         return;
     }
 
@@ -38,15 +37,23 @@ void LedControl::eventFlash()
     eventStep++;
 }
 
-void LedControl::showEventNotification(const CRGB& color, int flashes, int delayMs, const String& message)
+void LedControl::showEventNotification(const CRGB& color, int flashes, int delayMs)
 {
-    Serial.print("Event notification: ");
-    Serial.println(message);
-    eventTicker.detach(); // Stop any existing animation
+    eventTicker.detach();
     eventStep = 0;
     eventTotalFlashes = flashes;
     eventColor = color;
     eventTicker.attach_ms(delayMs, [this]() { this->eventFlash(); });
+}
+
+void LedControl::showSuccess()
+{
+    showEventNotification(CRGB::Green, 8, 300);
+}
+
+void LedControl::showError()
+{
+    showEventNotification(CRGB::Red, 8, 300);
 }
 
 void LedControl::changeState(const Payload &payload)

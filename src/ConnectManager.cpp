@@ -58,12 +58,12 @@ void initWiFi()
             Serial.println("\nConnected to Wi-Fi!");
             Serial.print("IP Address: ");
             Serial.println(WiFi.localIP());
-            ledControl.showEventNotification(CRGB::Green, 8, 300, "Wi-Fi connected successfully");
+            ledControl.showSuccess();
             return;
         }
 
         Serial.println("\nFailed to connect to Wi-Fi.");
-        ledControl.showEventNotification(CRGB::Red, 8, 300, "Wi-Fi connection failed");
+        ledControl.showError();
     }
 
     Serial.println("Scanning Wi-Fi networks...");
