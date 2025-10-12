@@ -36,12 +36,25 @@ void MqttManager::init()
         return;
     }
 
+    if (config.mqttUsername.length() > 0 && config.mqttPassword.length() > 0)
+    {
+        mqttClient.setCredentials(config.mqttUsername.c_str(), config.mqttPassword.c_str());
+        Serial.println("MQTT credentials set.");
+    }
+    else
+    {
+        Serial.println("No MQTT credentials provided, connecting without authentication.");
+    }
+
     connectToMqtt();
 }
 
 void MqttManager::connectToMqtt()
 {
-    Serial.println("Connecting to MQTT...");
+    Serial.print("Connecting to MQTT broker ");
+    Serial.print(config.mqttServer);
+    Serial.print(":");
+    Serial.println(config.mqttPort);
     mqttClient.connect();
 }
 
@@ -52,7 +65,6 @@ void MqttManager::onMqttConnect(bool sessionPresent)
     Serial.println(sessionPresent);
 
     mqttClient.subscribe(getCommandTopic().c_str(), 2);
-
     publishDiscoveryMessage();
 }
 
@@ -127,25 +139,21 @@ String MqttManager::getProductId()
 {
     char chipIdStr[11];
     itoa(ESP.getChipId(), chipIdStr, 10);
-    return "garland-" + String(chipIdStr);;
+    return "garland-" + String(chipIdStr);
 }
 
 String MqttManager::getDiscoveryTopic()
 {
     String productId = getProductId();
-
     char discoveryTopic[100];
     snprintf(discoveryTopic, sizeof(discoveryTopic), DISCOVERY_TOPIC_TEMPLATE, productId.c_str());
-
     return String(discoveryTopic);
 }
 
 String MqttManager::getCommandTopic()
 {
     String productId = getProductId();
-
     char commandTopic[100];
     snprintf(commandTopic, sizeof(commandTopic), COMMAND_TOPIC_TEMPLATE, productId.c_str());
-
     return String(commandTopic);
 }
