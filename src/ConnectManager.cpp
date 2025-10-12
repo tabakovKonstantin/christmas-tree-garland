@@ -17,12 +17,24 @@ void notFound(AsyncWebServerRequest *request)
     request->send(404, "text/plain", "Not found");
 }
 
+// Escape HTML special characters in SSID names
+static String htmlEscape(const String &input)
+{
+    String s = input;
+    s.replace("&", "&amp;");
+    s.replace("<", "&lt;");
+    s.replace(">", "&gt;");
+    s.replace("\"", "&quot;");
+    s.replace("'", "&#39;");
+    return s;
+}
+
 void initWiFi()
 {
-    WiFi.mode(WIFI_STA);
     Serial.println();
     Serial.println("Initializing WiFi...");
 
+    WiFi.mode(WIFI_STA);
     bool tr = ConfigManager::loadConfig(config);
     if (tr)
     {
@@ -31,7 +43,6 @@ void initWiFi()
         Serial.println(config.wifiPassword);
 
         WiFi.begin(config.wifiSSID, config.wifiPassword);
-
         unsigned long startAttemptTime = millis();
         const unsigned long timeout = 10000;
 
@@ -52,25 +63,61 @@ void initWiFi()
         Serial.println("\nFailed to connect to Wi-Fi.");
     }
 
+    // Failed to connect — scan available networks
+    Serial.println("Scanning Wi-Fi networks...");
+    WiFi.mode(WIFI_STA);
+    int n = WiFi.scanNetworks();
+    Serial.print("Scan complete. Networks found: ");
+    Serial.println(n);
+
+    for (int i = 0; i < n; ++i)
+    {
+        String ssid = WiFi.SSID(i);
+        int32_t rssi = WiFi.RSSI(i);
+        uint8_t encryption = WiFi.encryptionType(i);
+        Serial.printf("%d: %s (RSSI %d) ENC:%d\n", i, ssid.c_str(), rssi, encryption);
+    }
+
+    // Start Access Point
     WiFi.mode(WIFI_AP);
     WiFi.softAP("esp-captive");
     Serial.print("AP IP Address: ");
     Serial.println(WiFi.softAPIP());
 
-    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
-              {  
+    server.on("/", HTTP_GET, [n](AsyncWebServerRequest *request)
+              {
         String html = "<h1>Wi-Fi & MQTT Configuration</h1>";
         html += "<form action='/config' method='POST'>";
         html += "<h3>Wi-Fi</h3>";
-        html += "SSID: <input type='text' name='ssid'><br>";
+
+        // Dropdown for scanned SSIDs
+        html += "SSID: <select name='ssid'>";
+        if (n <= 0) {
+            html += "<option value='' disabled selected>-- no networks found --</option>";
+        } else {
+            html += "<option value='' selected>-- select SSID --</option>";
+            for (int i = 0; i < n; ++i) {
+                String ssidRaw = WiFi.SSID(i);
+                String ssidEsc = htmlEscape(ssidRaw);
+                html += "<option value='" + ssidEsc + "'>" + ssidEsc + " (" + String(WiFi.RSSI(i)) + " dBm)</option>";
+            }
+        }
+        html += "</select><br>";
+
+        // Manual input for hidden or custom SSIDs
+        html += "<br><label>Or enter hidden/custom SSID manually:</label><br>";
+        html += "Manual SSID: <input type='text' name='ssid_manual'><br>";
+
         html += "Password: <input type='password' name='password'><br>";
+
         html += "<h3>MQTT</h3>";
-        html += "Server URL: <input type='text' name='mqtt_url' value='192.168.100.115'><br>";
+        html += "Server URL: <input type='text' name='mqtt_url' value='116.203.170.149'><br>";
         html += "Port: <input type='number' name='mqtt_port' value='1883'><br>";
-        html += "Username: <input type='text' name='mqtt_user'><br>";
+        html += "Username: <input type='text' name='mqtt_user' value='xmaslights'><br>";
         html += "Password: <input type='password' name='mqtt_pass'><br>";
         html += "<br><input type='submit' value='Save'>";
         html += "</form>";
+
         request->send(200, "text/html", html); });
 
     server.on("/config", HTTP_POST, handleConfigRequest);
@@ -81,24 +128,29 @@ void initWiFi()
 void handleConfigRequest(AsyncWebServerRequest *request)
 {
     String ssid = "";
+    String manualSSID = "";
     String password = "";
     String mqttServer = "";
     int mqttPort = 1883;
     String mqttUser = "";
     String mqttPass = "";
 
-    if (request->hasParam(PARAM_SSID, true))
-        ssid = request->getParam(PARAM_SSID, true)->value();
-    if (request->hasParam(PARAM_PASSWORD, true))
-        password = request->getParam(PARAM_PASSWORD, true)->value();
-    if (request->hasParam(PARAM_MQTT_URL, true))
-        mqttServer = request->getParam(PARAM_MQTT_URL, true)->value();
-    if (request->hasParam(PARAM_MQTT_PORT, true))
-        mqttPort = request->getParam(PARAM_MQTT_PORT, true)->value().toInt();
-    if (request->hasParam(PARAM_MQTT_USER, true))
-        mqttUser = request->getParam(PARAM_MQTT_USER, true)->value();
-    if (request->hasParam(PARAM_MQTT_PASS, true))
-        mqttPass = request->getParam(PARAM_MQTT_PASS, true)->value();
+    if (request->hasParam("ssid", true))
+        ssid = request->getParam("ssid", true)->value();
+    if (request->hasParam("ssid_manual", true))
+        manualSSID = request->getParam("ssid_manual", true)->value();
+    if (manualSSID.length() > 0)
+        ssid = manualSSID; // Manual SSID overrides dropdown
+    if (request->hasParam("password", true))
+        password = request->getParam("password", true)->value();
+    if (request->hasParam("mqtt_url", true))
+        mqttServer = request->getParam("mqtt_url", true)->value();
+    if (request->hasParam("mqtt_port", true))
+        mqttPort = request->getParam("mqtt_port", true)->value().toInt();
+    if (request->hasParam("mqtt_user", true))
+        mqttUser = request->getParam("mqtt_user", true)->value();
+    if (request->hasParam("mqtt_pass", true))
+        mqttPass = request->getParam("mqtt_pass", true)->value();
 
     if (ssid.length() > 0 && password.length() > 0)
     {
