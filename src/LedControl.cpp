@@ -48,12 +48,12 @@ void LedControl::showEventNotification(const CRGB& color, int flashes, int delay
 
 void LedControl::showSuccess()
 {
-    showEventNotification(CRGB::Green, 8, 300);
+    showEventNotification(CRGB::Green, 3, 300);
 }
 
 void LedControl::showError()
 {
-    showEventNotification(CRGB::Red, 8, 300);
+    showEventNotification(CRGB::Red, 6, 600);
 }
 
 void LedControl::changeState(const Payload &payload)

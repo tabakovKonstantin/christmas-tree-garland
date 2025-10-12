@@ -17,6 +17,7 @@ const char *PARAM_MQTT_PASS = "mqtt_pass";
 void notFound(AsyncWebServerRequest *request)
 {
     request->send(404, "text/plain", "Not found");
+    ledControl.showError();
 }
 
 static String htmlEscape(const String &input)
@@ -34,6 +35,7 @@ void initWiFi()
 {
     Serial.println();
     Serial.println("Initializing WiFi...");
+    ledControl.showSuccess();
 
     WiFi.mode(WIFI_STA);
     bool tr = ConfigManager::loadConfig(config);
@@ -42,6 +44,7 @@ void initWiFi()
         Serial.println("Loaded config:");
         Serial.println(config.wifiSSID);
         Serial.println(config.wifiPassword);
+        ledControl.showSuccess();
 
         WiFi.begin(config.wifiSSID, config.wifiPassword);
         unsigned long startAttemptTime = millis();
@@ -65,12 +68,21 @@ void initWiFi()
         Serial.println("\nFailed to connect to Wi-Fi.");
         ledControl.showError();
     }
+    else
+    {
+        Serial.println("Config not loaded or missing, starting AP mode.");
+        ledControl.showError();
+    }
 
     Serial.println("Scanning Wi-Fi networks...");
     WiFi.mode(WIFI_STA);
     int n = WiFi.scanNetworks();
     Serial.print("Scan complete. Networks found: ");
     Serial.println(n);
+    if (n > 0)
+        ledControl.showSuccess();
+    else
+        ledControl.showError();
 
     for (int i = 0; i < n; ++i)
     {
@@ -84,6 +96,7 @@ void initWiFi()
     WiFi.softAP("esp-captive");
     Serial.print("AP IP Address: ");
     Serial.println(WiFi.softAPIP());
+    ledControl.showSuccess();
 
     server.on("/", HTTP_GET, [n](AsyncWebServerRequest *request)
               {
@@ -117,11 +130,13 @@ void initWiFi()
         html += "<br><input type='submit' value='Save'>";
         html += "</form>";
 
-        request->send(200, "text/html", html); });
+        request->send(200, "text/html", html);
+        ledControl.showSuccess(); });
 
     server.on("/config", HTTP_POST, handleConfigRequest);
     server.onNotFound(notFound);
     server.begin();
+    ledControl.showSuccess();
 }
 
 void handleConfigRequest(AsyncWebServerRequest *request)
@@ -160,7 +175,16 @@ void handleConfigRequest(AsyncWebServerRequest *request)
         config.wifiSSID = ssid;
         config.wifiPassword = password;
 
-        ConfigManager::saveConfig(config);
+        if (ConfigManager::saveConfig(config))
+        {
+            Serial.println("Configuration saved successfully.");
+            ledControl.showSuccess();
+        }
+        else
+        {
+            Serial.println("Failed to save configuration.");
+            ledControl.showError();
+        }
 
         request->send(200, "text/html", "<h1>Configuration Saved! Rebooting...</h1>");
         delay(2000);
@@ -168,6 +192,8 @@ void handleConfigRequest(AsyncWebServerRequest *request)
     }
     else
     {
+        Serial.println("Missing SSID or Password in config submission.");
+        ledControl.showError();
         request->send(400, "text/html", "<h1>Missing SSID or Password</h1>");
     }
 }
