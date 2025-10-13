@@ -103,35 +103,138 @@ void initWiFi()
 
     server.on("/", HTTP_GET, [n](AsyncWebServerRequest *request)
               {
-        String html = "<h1>Wi-Fi & MQTT Configuration</h1>";
-        html += "<form action='/config' method='POST'>";
-        html += "<h3>Wi-Fi</h3>";
+        String html = R"rawliteral(
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0'>
+<title>🎄 Wi-Fi & MQTT Setup</title>
+<style>
+body {
+  margin: 0;
+  font-family: "Nunito", sans-serif;
+  background: linear-gradient(180deg, #c91c24, #f4d35e);
+  background-attachment: fixed;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+}
+.card {
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 16px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+  padding: 24px;
+  max-width: 420px;
+  width: 100%;
+  text-align: center;
+  position: relative;
+}
+h1 {
+  font-size: 1.6rem;
+  color: #b91c1c;
+  margin-bottom: 16px;
+}
+.section {
+  margin: 18px 0;
+  text-align: left;
+}
+label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: #444;
+}
+input, select {
+  width: 100%;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  font-size: 1rem;
+  box-sizing: border-box;
+  margin-bottom: 12px;
+}
+button {
+  background: #2ecc71;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1.1rem;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background 0.3s, transform 0.2s;
+}
+button:hover {
+  background: #27ae60;
+  transform: scale(1.05);
+}
+.footer {
+  font-size: 0.9rem;
+  color: #666;
+  margin-top: 10px;
+}
+</style>
+</head>
+<body>
+<div class='card'>
+<h1>🎄 Wi-Fi & MQTT Setup</h1>
+<form action='/config' method='POST'>
+<div class='section'>
+<h3>📶 Wi-Fi</h3>
+<label for='ssid'>Select SSID:</label>
+<select id='ssid' name='ssid'>)rawliteral";
 
-        html += "SSID: <select name='ssid'>";
-        if (n <= 0) {
+        if (n <= 0)
+        {
             html += "<option value='' disabled selected>-- no networks found --</option>";
-        } else {
+        }
+        else
+        {
             html += "<option value='' selected>-- select SSID --</option>";
-            for (int i = 0; i < n; ++i) {
+            for (int i = 0; i < n; ++i)
+            {
                 String ssidRaw = WiFi.SSID(i);
                 String ssidEsc = htmlEscape(ssidRaw);
                 html += "<option value='" + ssidEsc + "'>" + ssidEsc + " (" + String(WiFi.RSSI(i)) + " dBm)</option>";
             }
         }
-        html += "</select><br>";
 
-        html += "<br><label>Or enter hidden/custom SSID manually:</label><br>";
-        html += "Manual SSID: <input type='text' name='ssid_manual'><br>";
+        html += R"rawliteral(
+</select>
+<label for='ssid_manual'>Or enter custom SSID:</label>
+<input id='ssid_manual' type='text' name='ssid_manual' placeholder='Manual SSID'>
+<label for='password'>Password:</label>
+<input id='password' type='password' name='password' placeholder='Wi-Fi Password'>
+</div>
 
-        html += "Password: <input type='password' name='password'><br>";
+<div class='section'>
+<h3>🔌 MQTT</h3>
+<label for='mqtt_url'>Server URL:</label>
+<input id='mqtt_url' type='text' name='mqtt_url' placeholder='e.g. 116.203.170.149' value='116.203.170.149'>
 
-        html += "<h3>MQTT</h3>";
-        html += "Server URL: <input type='text' name='mqtt_url' value='116.203.170.149'><br>";
-        html += "Port: <input type='number' name='mqtt_port' value='1883'><br>";
-        html += "Username: <input type='text' name='mqtt_user' value='xmaslights'><br>";
-        html += "Password: <input type='password' name='mqtt_pass'><br>";
-        html += "<br><input type='submit' value='Save'>";
-        html += "</form>";
+<div style='display:flex; gap:10px;'>
+  <div style='flex:2;'>
+    <label for='mqtt_user'>Username:</label>
+    <input id='mqtt_user' type='text' name='mqtt_user' placeholder='xmaslights' value='xmaslights'>
+  </div>
+  <div style='flex:1;'>
+    <label for='mqtt_port'>Port:</label>
+    <input id='mqtt_port' type='number' name='mqtt_port' value='1883'>
+  </div>
+</div>
+
+<label for='mqtt_pass'>Password:</label>
+<input id='mqtt_pass' type='password' name='mqtt_pass' placeholder='MQTT Password'>
+</div>
+
+<button type='submit'>🎅 Save Configuration</button>
+<p class='footer'>Made with ❤️ for Christmas</p>
+</form>
+</div>
+</body>
+</html>)rawliteral";
 
         request->send(200, "text/html", html);
         ledControl.showSuccess(); });
