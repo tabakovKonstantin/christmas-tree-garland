@@ -33,7 +33,7 @@ public:
             return new TreeEffect();
         }
 
-        if (effectName == "Fire" || effectName == "Candle" || effectName == "Halloween Flame")
+        if (effectName == "Halloween Flame")
         {
             return new FireEffect();
         }
