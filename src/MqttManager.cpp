@@ -1,6 +1,7 @@
 #include "MqttManager.h"
 #include "ConfigManager.h"
 #include "LedControl.h"
+#include "Payload.h"
 #include <Ticker.h>
 #include <ArduinoJson.h>
 #include <ESP8266WiFi.h>
@@ -85,13 +86,27 @@ void MqttManager::onMqttDisconnect(AsyncMqttClientDisconnectReason reason)
 void MqttManager::onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties properties,
                                 size_t len, size_t index, size_t total)
 {
+    Serial.println();
+    Serial.println("Message received.");
+    Serial.print("  topic: ");
+    Serial.println(topic);
+    Serial.print("  payload: ");
+
     String message;
     for (size_t i = 0; i < len; i++)
         message += payload[i];
-
-    Serial.print("Received MQTT message on topic: ");
-    Serial.println(topic);
     Serial.println(message);
+
+    Payload incomingPayload;
+    if (incomingPayload.fromJson(message))
+    {
+        Serial.print("  parsed JSON: ");
+        Serial.println(incomingPayload.toJson());
+        ledControl.changeState(incomingPayload);
+        return;
+    }
+
+    Serial.print("Failed to parse JSON message.");
 }
 
 void MqttManager::publishDiscoveryMessage()
