@@ -96,40 +96,57 @@ void MqttManager::onMqttMessage(char *topic, char *payload, AsyncMqttClientMessa
 
 void MqttManager::publishDiscoveryMessage()
 {
-    String discoveryTopic = getDiscoveryTopic();
     JsonDocument doc;
-
-    doc["name"] = getProductId();
+    doc["name"] = "Christmas garland";
     doc["unique_id"] = getProductId();
     doc["command_topic"] = getCommandTopic();
-    doc["schema"] = "json";
-    doc["brightness"] = true;
-    doc["effect"] = true;
+
+    JsonObject device = doc["device"].to<JsonObject>();
+    JsonArray identifiers = device["identifiers"].to<JsonArray>();
+    identifiers.add(getProductId());
+    device["manufacturer"] = "Tabakov";
+    device["model"] = "Home";
+    device["name"] = "Christmas garland";
+    device["sw_version"] = "0.0.1";
 
     JsonArray colorModes = doc["supported_color_modes"].to<JsonArray>();
     colorModes.add("rgb");
 
-    String payload;
-    serializeJson(doc, payload);
-    mqttClient.publish(discoveryTopic.c_str(), 0, true, payload.c_str());
-    Serial.println("Discovery message published.");
+    doc["effect"] = true;
+    JsonArray effectList = doc["effect_list"].to<JsonArray>();
+    effectList.add("Rainbow");
+    effectList.add("Smooth wave");
+    effectList.add("Sparkle");
+    effectList.add("Tree");
+
+    doc["schema"] = "json";
+    doc["optimistic"] = true;
+
+    String message;
+    serializeJson(doc, message);
+
+    mqttClient.publish(getDiscoveryTopic().c_str(), 1, true, message.c_str());
 }
 
 String MqttManager::getProductId()
 {
-    return String(ESP.getChipId(), HEX);
+    char chipIdStr[11];
+    itoa(ESP.getChipId(), chipIdStr, 10);
+    return "garland-" + String(chipIdStr);
 }
 
 String MqttManager::getDiscoveryTopic()
 {
-    char topic[128];
-    snprintf(topic, sizeof(topic), DISCOVERY_TOPIC_TEMPLATE, getProductId().c_str());
-    return String(topic);
+    String productId = getProductId();
+    char discoveryTopic[100];
+    snprintf(discoveryTopic, sizeof(discoveryTopic), DISCOVERY_TOPIC_TEMPLATE, productId.c_str());
+    return String(discoveryTopic);
 }
 
 String MqttManager::getCommandTopic()
 {
-    char topic[128];
-    snprintf(topic, sizeof(topic), COMMAND_TOPIC_TEMPLATE, getProductId().c_str());
-    return String(topic);
+    String productId = getProductId();
+    char commandTopic[100];
+    snprintf(commandTopic, sizeof(commandTopic), COMMAND_TOPIC_TEMPLATE, productId.c_str());
+    return String(commandTopic);
 }
