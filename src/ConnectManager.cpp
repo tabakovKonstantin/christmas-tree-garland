@@ -93,7 +93,10 @@ void initWiFi()
     }
 
     WiFi.mode(WIFI_AP);
-    WiFi.softAP("esp-captive");
+    String apSsid = getSsidWithChipId();
+    WiFi.softAP(apSsid.c_str());
+    Serial.print("AP SSID: ");
+    Serial.println(apSsid);
     Serial.print("AP IP Address: ");
     Serial.println(WiFi.softAPIP());
     ledControl.showSuccess();
