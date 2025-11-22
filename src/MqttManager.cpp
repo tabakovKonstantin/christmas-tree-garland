@@ -1,7 +1,6 @@
 #include "MqttManager.h"
 #include "ConfigManager.h"
 #include "LedControl.h"
-#include "Payload.h"
 #include <Ticker.h>
 #include <ArduinoJson.h>
 #include <ESP8266WiFi.h>
@@ -11,7 +10,26 @@ Ticker mqttReconnectTimer;
 
 extern LedControl ledControl;
 
-MqttManager::MqttManager(LedControl &led_Control) : ledControl(led_Control) {}
+MqttManager::MqttManager(LedControl &led_Control)
+    : ledControl(led_Control),
+      commandTopic(""),
+      otaTopic(""),
+      router(),
+      lightHandler(led_Control),
+      otaHandler(led_Control)
+{
+    // Build topics once based on chip ID.
+    commandTopic = buildCommandTopic();
+    otaTopic = buildOtaTopic();
+
+    // Configure handlers with their dedicated topics.
+    lightHandler.setTopic(commandTopic);
+    otaHandler.setTopic(otaTopic);
+
+    // Register handlers in router.
+    router.addHandler(&lightHandler);
+    router.addHandler(&otaHandler);
+}
 
 void MqttManager::init()
 {
@@ -22,7 +40,9 @@ void MqttManager::init()
                          { this->onMqttConnect(sessionPresent); });
     mqttClient.onDisconnect([this](AsyncMqttClientDisconnectReason reason)
                             { this->onMqttDisconnect(reason); });
-    mqttClient.onMessage([this](char *topic, char *payload, AsyncMqttClientMessageProperties properties, size_t len, size_t index, size_t total)
+    mqttClient.onMessage([this](char *topic, char *payload,
+                                AsyncMqttClientMessageProperties properties,
+                                size_t len, size_t index, size_t total)
                          { this->onMqttMessage(topic, payload, properties, len, index, total); });
 
     IPAddress mqttIP;
@@ -68,7 +88,14 @@ void MqttManager::onMqttConnect(bool sessionPresent)
     Serial.println(sessionPresent);
     ledControl.showSuccess();
 
-    mqttClient.subscribe(getCommandTopic().c_str(), 2);
+    Serial.print("Subscribing to command topic: ");
+    Serial.println(commandTopic);
+    mqttClient.subscribe(commandTopic.c_str(), 2);
+
+    Serial.print("Subscribing to OTA topic: ");
+    Serial.println(otaTopic);
+    mqttClient.subscribe(otaTopic.c_str(), 1);
+
     publishDiscoveryMessage();
 }
 
@@ -83,8 +110,12 @@ void MqttManager::onMqttDisconnect(AsyncMqttClientDisconnectReason reason)
     }
 }
 
-void MqttManager::onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties properties,
-                                size_t len, size_t index, size_t total)
+void MqttManager::onMqttMessage(char *topic,
+                                char *payload,
+                                AsyncMqttClientMessageProperties properties,
+                                size_t len,
+                                size_t index,
+                                size_t total)
 {
     Serial.println();
     Serial.println("Message received.");
@@ -93,20 +124,17 @@ void MqttManager::onMqttMessage(char *topic, char *payload, AsyncMqttClientMessa
     Serial.print("  payload: ");
 
     String message;
+    message.reserve(len + 1);
     for (size_t i = 0; i < len; i++)
+    {
         message += payload[i];
+    }
     Serial.println(message);
 
-    Payload incomingPayload;
-    if (incomingPayload.fromJson(message))
-    {
-        Serial.print("  parsed JSON: ");
-        Serial.println(incomingPayload.toJson());
-        ledControl.changeState(incomingPayload);
-        return;
-    }
+    String topicStr(topic);
 
-    Serial.print("Failed to parse JSON message.");
+    // Delegate logic to router and handlers.
+    router.route(topicStr, message);
 }
 
 void MqttManager::publishDiscoveryMessage()
@@ -114,7 +142,7 @@ void MqttManager::publishDiscoveryMessage()
     JsonDocument doc;
     doc["name"] = "Christmas garland";
     doc["unique_id"] = getProductId();
-    doc["command_topic"] = getCommandTopic();
+    doc["command_topic"] = commandTopic;
 
     JsonObject device = doc["device"].to<JsonObject>();
     JsonArray identifiers = device["identifiers"].to<JsonArray>();
@@ -141,7 +169,8 @@ void MqttManager::publishDiscoveryMessage()
     String message;
     serializeJson(doc, message);
 
-    mqttClient.publish(getDiscoveryTopic().c_str(), 1, true, message.c_str());
+    String discoveryTopic = buildDiscoveryTopic();
+    mqttClient.publish(discoveryTopic.c_str(), 1, true, message.c_str());
 }
 
 String MqttManager::getProductId()
@@ -151,18 +180,26 @@ String MqttManager::getProductId()
     return "garland-" + String(chipIdStr);
 }
 
-String MqttManager::getDiscoveryTopic()
+String MqttManager::buildDiscoveryTopic() const
 {
-    String productId = getProductId();
+    String productId = const_cast<MqttManager *>(this)->getProductId();
     char discoveryTopic[100];
     snprintf(discoveryTopic, sizeof(discoveryTopic), DISCOVERY_TOPIC_TEMPLATE, productId.c_str());
     return String(discoveryTopic);
 }
 
-String MqttManager::getCommandTopic()
+String MqttManager::buildCommandTopic() const
 {
-    String productId = getProductId();
-    char commandTopic[100];
-    snprintf(commandTopic, sizeof(commandTopic), COMMAND_TOPIC_TEMPLATE, productId.c_str());
-    return String(commandTopic);
+    String productId = const_cast<MqttManager *>(this)->getProductId();
+    char commandTopicBuf[100];
+    snprintf(commandTopicBuf, sizeof(commandTopicBuf), COMMAND_TOPIC_TEMPLATE, productId.c_str());
+    return String(commandTopicBuf);
+}
+
+String MqttManager::buildOtaTopic() const
+{
+    String productId = const_cast<MqttManager *>(this)->getProductId();
+    char otaTopicBuf[100];
+    snprintf(otaTopicBuf, sizeof(otaTopicBuf), OTA_TOPIC_TEMPLATE, productId.c_str());
+    return String(otaTopicBuf);
 }
