@@ -15,7 +15,27 @@ void OtaManager::setup()
     hostname.toLowerCase();
     ArduinoOTA.setHostname(hostname.c_str());
 
-    // Optional: set password here if you want OTA authentication.
+    // Extra debug: print network info BEFORE OTA starts
+    Serial.println("=== OTA Network Debug Info ===");
+    Serial.print("WiFi mode: ");
+    Serial.println(WiFi.getMode() == WIFI_STA ? "STA" : "AP/OTHER");
+
+    Serial.print("Device IP: ");
+    Serial.println(WiFi.localIP());
+
+    Serial.print("Gateway: ");
+    Serial.println(WiFi.gatewayIP());
+
+    Serial.print("Subnet mask: ");
+    Serial.println(WiFi.subnetMask());
+
+    Serial.print("RSSI: ");
+    Serial.println(WiFi.RSSI());
+
+    Serial.println("Hostname assigned: " + hostname);
+    Serial.println("==============================");
+
+    // Optional password:
     // ArduinoOTA.setPassword("your-ota-password");
 
     ArduinoOTA.onStart([]()
@@ -40,37 +60,66 @@ void OtaManager::setup()
 
     ArduinoOTA.onProgress([](unsigned int progress, unsigned int total)
     {
-        unsigned int percent = 0;
-        if (total != 0)
-        {
-            percent = (progress * 100U) / total;
-        }
+        unsigned int percent = (total > 0) ? (progress * 100U) / total : 0;
         Serial.printf("OTA progress: %u%%\r", percent);
     });
 
     ArduinoOTA.onError([](ota_error_t error)
     {
         Serial.printf("OTA error[%u]: ", error);
-        if (error == OTA_AUTH_ERROR)
+
+        // New: Verbose error decoding
+        switch (error)
         {
-            Serial.println("Auth failed");
+        case OTA_AUTH_ERROR:
+            Serial.println("AUTH ERROR (wrong password?)");
+            break;
+
+        case OTA_BEGIN_ERROR:
+            Serial.println("BEGIN ERROR (flash init failed)");
+            break;
+
+        case OTA_CONNECT_ERROR:
+            Serial.println("CONNECT ERROR (ESP could not open TCP connection to host)");
+            Serial.println("Potential reasons:");
+            Serial.println(" - Wrong host_ip in platformio.ini upload_flags");
+            Serial.println(" - Firewall/VPN on host blocks incoming TCP");
+            Serial.println(" - Host and ESP not in same network segment");
+            Serial.println(" - Host chosen wrong interface (0.0.0.0 detected)");
+            break;
+
+        case OTA_RECEIVE_ERROR:
+            Serial.println("RECEIVE ERROR (transfer interrupted)");
+            Serial.println("Possible reasons:");
+            Serial.println(" - Weak WiFi signal (check RSSI)");
+            Serial.println(" - Packet loss / router filtering UDP/TCP");
+            break;
+
+        case OTA_END_ERROR:
+            Serial.println("END ERROR (connection closed prematurely)");
+            Serial.println("Often follows CONNECT/RECEIVE issues.");
+            Serial.println("Check above logs for root cause.");
+            break;
+
+        default:
+            Serial.println("Unknown OTA error");
+            break;
         }
-        else if (error == OTA_BEGIN_ERROR)
-        {
-            Serial.println("Begin failed");
-        }
-        else if (error == OTA_CONNECT_ERROR)
-        {
-            Serial.println("Connect failed");
-        }
-        else if (error == OTA_RECEIVE_ERROR)
-        {
-            Serial.println("Receive failed");
-        }
-        else if (error == OTA_END_ERROR)
-        {
-            Serial.println("End failed");
-        }
+
+        // Additional debug printout of current network state:
+        Serial.println();
+        Serial.println("=== Live Network State at Error ===");
+        Serial.print("WiFi status: ");
+        Serial.println(WiFi.status());
+        Serial.print("Local IP: ");
+        Serial.println(WiFi.localIP());
+        Serial.print("Gateway: ");
+        Serial.println(WiFi.gatewayIP());
+        Serial.print("Subnet: ");
+        Serial.println(WiFi.subnetMask());
+        Serial.print("RSSI: ");
+        Serial.println(WiFi.RSSI());
+        Serial.println("===================================");
     });
 
     ArduinoOTA.begin();
@@ -84,6 +133,5 @@ void OtaManager::setup()
 
 void OtaManager::handle()
 {
-    // Handle OTA events (must be called often in loop()).
     ArduinoOTA.handle();
 }
