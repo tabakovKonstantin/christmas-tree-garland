@@ -31,7 +31,6 @@ void OtaCommandHandler::handleMessage(const String &topic, const String &payload
     String command = doc["command"].as<String>();
     if (command.length() == 0)
     {
-        // Allow alternative field name "action".
         command = doc["action"].as<String>();
     }
 
@@ -60,7 +59,6 @@ void OtaCommandHandler::handleMessage(const String &topic, const String &payload
         return;
     }
 
-    // Visual feedback that OTA is starting.
     ledControl.showSuccess();
     Serial.println("  [OtaHandler] Starting HTTP OTA update from URL...");
     HttpOtaUpdater::updateFromUrl(url);

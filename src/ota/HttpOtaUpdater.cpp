@@ -4,8 +4,6 @@
 #include <ESPAsyncTCP.h>
 #include <Updater.h>
 
-// ================== ВНУТРЕННЕЕ СОСТОЯНИЕ OTA (АСИНХРОННОЕ) ==================
-
 namespace
 {
     struct ParsedUrl
@@ -13,21 +11,18 @@ namespace
         String host;
         String path;
         uint16_t port;
-        bool https;
         bool valid;
 
-        ParsedUrl() : port(80), https(false), valid(false) {}
+        ParsedUrl() : port(80), valid(false) {}
     };
 
-    // Текущее состояние OTA-сессии
     AsyncClient *otaClient = nullptr;
     bool otaInProgress = false;
 
     ParsedUrl currentUrl;
 
-    // Парсинг HTTP-ответа
-    String headerBuffer;          // копим заголовки до \r\n\r\n
-    bool headersComplete = false; // заголовки прочитаны и распарсены
+    String headerBuffer;
+    bool headersComplete = false;
 
     long contentLength = -1;
     bool isChunked = false;
@@ -36,9 +31,6 @@ namespace
     bool updateBegun = false;
     bool updateEnded = false;
 
-    // ---------- Вспомогательные функции ----------
-
-    // Сбрасывает временное состояние одной OTA-сессии, НО НЕ трогает currentUrl и otaInProgress.
     static void initOtaSessionState()
     {
         headerBuffer = "";
@@ -50,7 +42,6 @@ namespace
         updateEnded = false;
     }
 
-    // Полный сброс OTA: и временное состояние, и URL, и флаг otaInProgress.
     static void resetOtaState()
     {
         initOtaSessionState();
@@ -74,39 +65,30 @@ namespace
         }
     }
 
-    // Примитивный парсер URL, как раньше, но только для http/https.
+    // Very simple HTTP URL parser: http://host[:port]/path
     static ParsedUrl parseUrl(const String &url)
     {
         ParsedUrl result;
 
-        if (!url.startsWith("http://") && !url.startsWith("https://"))
+        if (!url.startsWith("http://"))
         {
-            Serial.println("[HTTP-OTA] URL must start with http:// or https://");
+            Serial.println("[HTTP-OTA] Only http:// URLs are supported");
             return result;
         }
 
-        bool isHttps = url.startsWith("https://");
-        int schemeLen = isHttps ? 8 : 7;
-
-        int hostStart = schemeLen;
-        if (hostStart >= (int)url.length())
-        {
-            Serial.println("[HTTP-OTA] URL parse error: no host part");
-            return result;
-        }
-
-        int pathStart = url.indexOf('/', hostStart);
+        String rest = url.substring(7); // after "http://"
+        int slashPos = rest.indexOf('/');
 
         String hostPort;
-        if (pathStart < 0)
+        if (slashPos < 0)
         {
-            hostPort = url.substring(hostStart);
+            hostPort = rest;
             result.path = "/";
         }
         else
         {
-            hostPort = url.substring(hostStart, pathStart);
-            result.path = url.substring(pathStart);
+            hostPort = rest.substring(0, slashPos);
+            result.path = rest.substring(slashPos);
             if (result.path.length() == 0)
             {
                 result.path = "/";
@@ -121,25 +103,21 @@ namespace
             int parsedPort = portStr.toInt();
             if (parsedPort <= 0 || parsedPort > 65535)
             {
-                Serial.print("[HTTP-OTA] Invalid port in URL: ");
-                Serial.println(portStr);
-                return result;
+                parsedPort = 80;
             }
             result.port = static_cast<uint16_t>(parsedPort);
         }
         else
         {
             result.host = hostPort;
-            result.port = isHttps ? 443 : 80;
+            result.port = 80;
         }
 
         if (result.host.length() == 0)
         {
-            Serial.println("[HTTP-OTA] URL parse error: empty host");
             return result;
         }
 
-        result.https = isHttps;
         result.valid = true;
 
         Serial.print("[HTTP-OTA] Parsed URL -> host: ");
@@ -152,10 +130,8 @@ namespace
         return result;
     }
 
-    // Разбор заголовков из headerBuffer (всё до \r\n\r\n)
     static bool parseHttpHeaders()
     {
-        // Ищем первую строку статуса
         int firstCRLF = headerBuffer.indexOf("\r\n");
         if (firstCRLF <= 0)
         {
@@ -182,12 +158,10 @@ namespace
         if (statusCode != 200)
         {
             Serial.println("[HTTP-OTA] HTTP code is not 200, aborting OTA.");
-            Serial.println("           Проверь, что по URL отдаётся бинарник без редиректов.");
             return false;
         }
 
-        // Разбираем остальные заголовки
-        String headersPart = headerBuffer.substring(firstCRLF + 2); // после первой \r\n
+        String headersPart = headerBuffer.substring(firstCRLF + 2);
         contentLength = -1;
         isChunked = false;
 
@@ -201,8 +175,6 @@ namespace
             }
             if (next == pos)
             {
-                // Пустая строка (теоретически конец заголовков), но мы уже отрезали по \r\n\r\n,
-                // так что сюда обычно не попадём.
                 break;
             }
 
@@ -236,21 +208,19 @@ namespace
 
         if (isChunked)
         {
-            Serial.println("[HTTP-OTA] Chunked transfer encoding is not supported for OTA.");
-            Serial.println("           Нужен обычный Content-Length без chunked.");
+            Serial.println("[HTTP-OTA] Chunked transfer encoding is not supported.");
             return false;
         }
 
         if (contentLength <= 0)
         {
-            Serial.println("[HTTP-OTA] Missing or invalid Content-Length, cannot proceed.");
+            Serial.println("[HTTP-OTA] Missing or invalid Content-Length.");
             return false;
         }
 
         Serial.print("[HTTP-OTA] Firmware size (Content-Length): ");
         Serial.println(contentLength);
 
-        // Проверяем размер под скетч, как обычно.
         size_t freeSketchSpace = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
         Serial.print("[HTTP-OTA] Free sketch space: ");
         Serial.println(freeSketchSpace);
@@ -261,7 +231,6 @@ namespace
             return false;
         }
 
-        // Инициализируем Update
         if (!Update.begin(contentLength))
         {
             Serial.println("[HTTP-OTA] Update.begin() failed:");
@@ -270,11 +239,9 @@ namespace
         }
 
         updateBegun = true;
-        Serial.println("[HTTP-OTA] Flash update started (async).");
+        Serial.println("[HTTP-OTA] Flash update started.");
         return true;
     }
-
-    // ---------- Callbacks AsyncClient ----------
 
     static void onOtaConnect(void *arg, AsyncClient *client)
     {
@@ -323,7 +290,6 @@ namespace
     {
         Serial.println("[HTTP-OTA] AsyncClient disconnected.");
 
-        // Если мы уже завершили Update.end() и всё в порядке — перезагружаемся.
         if (updateBegun && updateEnded && Update.isFinished())
         {
             Serial.println("[HTTP-OTA] OTA update successful, rebooting...");
@@ -331,10 +297,9 @@ namespace
             freeOtaClient();
             Serial.println("===========================================");
             ESP.restart();
-            return; // на всякий случай
+            return;
         }
 
-        // Иначе что-то пошло не так
         if (updateBegun && !updateEnded)
         {
             Serial.println("[HTTP-OTA] Disconnected before Update.end().");
@@ -350,7 +315,6 @@ namespace
     {
         uint8_t *bytes = static_cast<uint8_t *>(data);
 
-        // Ограничим размер headerBuffer — если вдруг сервак шлёт мусор
         if (!headersComplete && headerBuffer.length() > 2048)
         {
             Serial.println("[HTTP-OTA] Headers too large, aborting.");
@@ -360,7 +324,6 @@ namespace
 
         size_t index = 0;
 
-        // 1) Сначала добираем заголовки, пока не встретим \r\n\r\n
         if (!headersComplete)
         {
             while (index < len && !headersComplete)
@@ -382,8 +345,6 @@ namespace
 
             if (headersComplete)
             {
-                // headerBuffer сейчас содержит всё до \r\n\r\n (включая его).
-                // Парсим.
                 if (!parseHttpHeaders())
                 {
                     Serial.println("[HTTP-OTA] Header parse failed, closing connection.");
@@ -391,7 +352,6 @@ namespace
                     return;
                 }
 
-                // Если в этом же чанке есть кусок тела — пишем его в Update.
                 if (index < len && updateBegun)
                 {
                     size_t bodyLen = len - index;
@@ -415,12 +375,10 @@ namespace
             }
             else
             {
-                // Пока ещё только заголовки, тела нет.
                 return;
             }
         }
 
-        // 2) Если заголовки уже прочитаны — весь буфер это тело
         if (updateBegun && !updateEnded)
         {
             size_t written = Update.write(bytes, len);
@@ -439,7 +397,6 @@ namespace
             Serial.print(" / ");
             Serial.println(contentLength);
 
-            // Если всё тело получено — завершаем Update.
             if (receivedBody >= (size_t)contentLength)
             {
                 Serial.println("[HTTP-OTA] All firmware bytes received, calling Update.end()...");
@@ -463,15 +420,12 @@ namespace
                 }
 
                 Serial.println("[HTTP-OTA] Update finished successfully, will reboot on disconnect.");
-                // Закрываем соединение, дальше сработает onOtaDisconnect и сделает ESP.restart().
                 client->close(true);
             }
         }
     }
 
 } // namespace
-
-// ================== ПУБЛИЧНЫЙ ИНТЕРФЕЙС ==================
 
 void HttpOtaUpdater::updateFromUrl(const String &url)
 {
@@ -495,19 +449,6 @@ void HttpOtaUpdater::updateFromUrl(const String &url)
     Serial.print("[HTTP-OTA] Requested URL: ");
     Serial.println(url);
 
-    Serial.print("[HTTP-OTA] Local IP: ");
-    Serial.println(WiFi.localIP());
-
-    Serial.print("[HTTP-OTA] Gateway: ");
-    Serial.println(WiFi.gatewayIP());
-
-    Serial.print("[HTTP-OTA] Subnet: ");
-    Serial.println(WiFi.subnetMask());
-
-    Serial.print("[HTTP-OTA] RSSI: ");
-    Serial.println(WiFi.RSSI());
-
-    // Парсим URL и сохраняем в currentUrl
     currentUrl = parseUrl(url);
     if (!currentUrl.valid)
     {
@@ -516,15 +457,6 @@ void HttpOtaUpdater::updateFromUrl(const String &url)
         return;
     }
 
-    if (currentUrl.https)
-    {
-        Serial.println("[HTTP-OTA] HTTPS is not supported for OTA.");
-        Serial.println("           Нужен URL вида http://<ip>/firmware.bin (без https).");
-        Serial.println("===========================================");
-        return;
-    }
-
-    // Создаём асинхронный клиент (тот же стек, что и у AsyncMqttClient/ESPAsyncTCP).
     otaClient = new AsyncClient();
     if (!otaClient)
     {
@@ -533,7 +465,6 @@ void HttpOtaUpdater::updateFromUrl(const String &url)
         return;
     }
 
-    // Инициализируем сессионное состояние, но НЕ трогаем currentUrl.
     initOtaSessionState();
     otaInProgress = true;
 
@@ -543,9 +474,9 @@ void HttpOtaUpdater::updateFromUrl(const String &url)
     otaClient->onTimeout(onOtaTimeout, nullptr);
     otaClient->onDisconnect(onOtaDisconnect, nullptr);
 
-    otaClient->setRxTimeout(8);        // таймаут приёма данных (секунды)
-    otaClient->setAckTimeout(8);       // таймаут ACK
-    otaClient->setNoDelay(true);       // отключаем Nagle
+    otaClient->setRxTimeout(8);
+    otaClient->setAckTimeout(8);
+    otaClient->setNoDelay(true);
 
     Serial.print("[HTTP-OTA] Async connecting to ");
     Serial.print(currentUrl.host);

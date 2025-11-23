@@ -5,7 +5,7 @@
 #include <ArduinoJson.h>
 #include "MqttMessageHandler.h"
 #include "../LedControl.h"
-#include "../HttpOtaUpdater.h"
+#include "../ota/HttpOtaUpdater.h"
 
 // Handles OTA control messages on a specific MQTT topic.
 // Topic pattern (from MqttManager): home/lights/<id>/ota
