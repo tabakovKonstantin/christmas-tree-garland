@@ -37,7 +37,7 @@ void LedControl::eventFlash()
     eventStep++;
 }
 
-void LedControl::showEventNotification(const CRGB& color, int flashes, int delayMs)
+void LedControl::showEventNotification(const CRGB &color, int flashes, int delayMs)
 {
     eventTicker.detach();
     eventStep = 0;
@@ -56,6 +56,44 @@ void LedControl::showError()
     showEventNotification(CRGB::Red, 6, 600);
 }
 
+bool LedControl::shouldUseWarmDefault(const Payload &payload,
+                                      bool hasBrightness,
+                                      bool hasColorRGB,
+                                      bool hasEffect) const
+{
+    if (!hasBrightness)
+    {
+        return false;
+    }
+
+    if (hasColorRGB || hasEffect)
+    {
+        return false;
+    }
+
+    if (payload.state.length() == 0)
+    {
+        return true;
+    }
+
+    if (payload.state.equalsIgnoreCase("ON"))
+    {
+        return true;
+    }
+
+    return false;
+}
+
+void LedControl::applyWarmDefault(int brightness)
+{
+    Serial.println("Applying warm yellow default state.");
+    setLEDBrightness(brightness);
+
+    CRGB warmYellow = CRGB(255, 200, 120);
+    fill_solid(leds, NUM_LEDS, warmYellow);
+    FastLED.show();
+}
+
 void LedControl::changeState(const Payload &payload)
 {
     Serial.println("Applying new state...");
@@ -63,33 +101,10 @@ void LedControl::changeState(const Payload &payload)
     bool hasBrightness = payload.brightness != -1;
     bool hasColorRGB = (payload.color.r != -1 && payload.color.g != -1 && payload.color.b != -1);
     bool hasEffect = (payload.effect != "null" && payload.effect.length() > 0);
-    bool hasState = (payload.state.length() > 0);
 
-    // Case 1: only brightness provided (no state/color/effect).
-    if (hasBrightness && !hasColorRGB && !hasEffect && !hasState)
+    if (shouldUseWarmDefault(payload, hasBrightness, hasColorRGB, hasEffect))
     {
-        Serial.println("Only brightness provided, applying warm yellow default color.");
-        setLEDBrightness(payload.brightness);
-
-        CRGB warmYellow = CRGB(255, 200, 120);
-        fill_solid(leds, NUM_LEDS, warmYellow);
-        FastLED.show();
-
-        Serial.println("Applying has finished");
-        return;
-    }
-
-    // Case 2: state is ON + brightness, but no RGB and no effect
-    // Example: {"state":"ON","brightness":8}
-    if (hasBrightness && !hasColorRGB && !hasEffect && payload.state.equalsIgnoreCase("ON"))
-    {
-        Serial.println("State ON with brightness only, applying warm yellow default color.");
-        setLEDBrightness(payload.brightness);
-
-        CRGB warmYellow = CRGB(255, 200, 120);
-        fill_solid(leds, NUM_LEDS, warmYellow);
-        FastLED.show();
-
+        applyWarmDefault(payload.brightness);
         Serial.println("Applying has finished");
         return;
     }
@@ -125,6 +140,7 @@ void LedControl::changeState(const Payload &payload)
         Serial.println("Turn off");
         FastLED.clear();
     }
+
     Serial.println("Applying has finished");
 }
 

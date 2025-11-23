@@ -25,6 +25,13 @@ private:
     void eventFlash();
     void showEventNotification(const CRGB& color, int flashes = 8, int delayMs = 300);
 
+    // Helpers for state handling
+    bool shouldUseWarmDefault(const Payload& payload,
+                              bool hasBrightness,
+                              bool hasColorRGB,
+                              bool hasEffect) const;
+    void applyWarmDefault(int brightness);
+
 public:
     LedControl(EffectManager& manager);
     void initLEDs();
