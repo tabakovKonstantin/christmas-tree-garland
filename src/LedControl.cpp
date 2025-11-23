@@ -10,13 +10,14 @@ void LedControl::initLEDs()
     FastLED.addLeds<LED_TYPE, LED_PIN, COLOR_ORDER>(leds, NUM_LEDS)
         .setCorrection(TypicalLEDStrip);
 
-    // Disable temporal dithering to avoid visible flicker on low brightness / pink colors.
     FastLED.setDither(false);
 
     FastLED.delay(UPDATES_PER_SECOND);
     FastLED.setBrightness(BRIGHTNESS);
     FastLED.clear(true);
     FastLED.show();
+
+    isOn = false;
 }
 
 void LedControl::eventFlash()
@@ -64,7 +65,8 @@ void LedControl::showError()
 bool LedControl::shouldUseWarmDefault(const Payload &payload,
                                       bool hasBrightness,
                                       bool hasColorRGB,
-                                      bool hasEffect) const
+                                      bool hasEffect,
+                                      bool isCurrentlyOn) const
 {
     if (!hasBrightness)
     {
@@ -76,12 +78,20 @@ bool LedControl::shouldUseWarmDefault(const Payload &payload,
         return false;
     }
 
-    if (payload.state.length() == 0)
+    bool hasState = payload.state.length() > 0;
+    bool stateOn = payload.state.equalsIgnoreCase("ON");
+
+    if (isCurrentlyOn)
+    {
+        return false;
+    }
+
+    if (!hasState)
     {
         return true;
     }
 
-    if (payload.state.equalsIgnoreCase("ON"))
+    if (stateOn)
     {
         return true;
     }
@@ -97,6 +107,8 @@ void LedControl::applyWarmDefault(int brightness)
     CRGB warmYellow = CRGB(255, 200, 120);
     fill_solid(leds, NUM_LEDS, warmYellow);
     FastLED.show();
+
+    isOn = true;
 }
 
 void LedControl::changeState(const Payload &payload)
@@ -107,7 +119,7 @@ void LedControl::changeState(const Payload &payload)
     bool hasColorRGB = (payload.color.r != -1 && payload.color.g != -1 && payload.color.b != -1);
     bool hasEffect = (payload.effect != "null" && payload.effect.length() > 0);
 
-    if (shouldUseWarmDefault(payload, hasBrightness, hasColorRGB, hasEffect))
+    if (shouldUseWarmDefault(payload, hasBrightness, hasColorRGB, hasEffect, isOn))
     {
         applyWarmDefault(payload.brightness);
         Serial.println("Applying has finished");
@@ -134,16 +146,20 @@ void LedControl::changeState(const Payload &payload)
         effectManager.setEffect(nullptr);
     }
 
-    if (payload.state == "ON" && payload.color.r == -1 && payload.brightness == -1 && payload.effect == "null")
-    {
-        Serial.println("Turn on");
-        fill_solid(leds, NUM_LEDS, CRGB::White);
-    }
-
-    if (payload.state == "OFF")
+    if (payload.state.equalsIgnoreCase("OFF"))
     {
         Serial.println("Turn off");
         FastLED.clear();
+        isOn = false;
+    }
+    else if (payload.state.equalsIgnoreCase("ON"))
+    {
+        if (payload.color.r == -1 && payload.brightness == -1 && payload.effect == "null")
+        {
+            Serial.println("Turn on");
+            fill_solid(leds, NUM_LEDS, CRGB::White);
+        }
+        isOn = true;
     }
 
     Serial.println("Applying has finished");

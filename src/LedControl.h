@@ -22,14 +22,16 @@ private:
     int eventTotalFlashes = 0;
     CRGB eventColor;
 
+    bool isOn = false;
+
     void eventFlash();
     void showEventNotification(const CRGB& color, int flashes = 8, int delayMs = 300);
 
-    // Helpers for state handling
     bool shouldUseWarmDefault(const Payload& payload,
                               bool hasBrightness,
                               bool hasColorRGB,
-                              bool hasEffect) const;
+                              bool hasEffect,
+                              bool isCurrentlyOn) const;
     void applyWarmDefault(int brightness);
 
 public:
