@@ -14,6 +14,7 @@ MqttManager::MqttManager(LedControl &led_Control)
     : ledControl(led_Control),
       commandTopic(""),
       otaTopic(""),
+      stateTopic(""),
       router(),
       lightHandler(led_Control),
       otaHandler(led_Control)
@@ -21,6 +22,7 @@ MqttManager::MqttManager(LedControl &led_Control)
     // Build topics once based on chip ID.
     commandTopic = buildCommandTopic();
     otaTopic = buildOtaTopic();
+    stateTopic = buildStateTopic();
 
     // Configure handlers with their dedicated topics.
     lightHandler.setTopic(commandTopic);
@@ -97,6 +99,7 @@ void MqttManager::onMqttConnect(bool sessionPresent)
     mqttClient.subscribe(otaTopic.c_str(), 1);
 
     publishDiscoveryMessage();
+    publishInitialState();
 }
 
 void MqttManager::onMqttDisconnect(AsyncMqttClientDisconnectReason reason)
@@ -135,6 +138,13 @@ void MqttManager::onMqttMessage(char *topic,
 
     // Delegate logic to router and handlers.
     router.route(topicStr, message);
+
+    // If this was a command to change light state, publish the new state.
+    if (topicStr == commandTopic)
+    {
+        // Reuse the incoming payload as state representation.
+        mqttClient.publish(stateTopic.c_str(), 1, true, message.c_str());
+    }
 }
 
 void MqttManager::publishDiscoveryMessage()
@@ -143,6 +153,7 @@ void MqttManager::publishDiscoveryMessage()
     doc["name"] = "Christmas garland";
     doc["unique_id"] = getProductId();
     doc["command_topic"] = commandTopic;
+    doc["state_topic"] = stateTopic;
 
     JsonObject device = doc["device"].to<JsonObject>();
     JsonArray identifiers = device["identifiers"].to<JsonArray>();
@@ -171,6 +182,28 @@ void MqttManager::publishDiscoveryMessage()
 
     String discoveryTopic = buildDiscoveryTopic();
     mqttClient.publish(discoveryTopic.c_str(), 1, true, message.c_str());
+}
+
+void MqttManager::publishInitialState()
+{
+    // Build a minimal initial state payload for Home Assistant.
+    Payload p;
+    p.brightness = BRIGHTNESS;
+    p.color_mode = "rgb";
+    p.color_temp = 0;
+
+    p.color.r = -1;
+    p.color.g = -1;
+    p.color.b = -1;
+    p.color.c = -1;
+    p.color.w = -1;
+
+    p.effect = "null";
+    p.state = "OFF";
+    p.transition = 0;
+
+    String json = p.toJson();
+    mqttClient.publish(stateTopic.c_str(), 1, true, json.c_str());
 }
 
 String MqttManager::getProductId()
@@ -202,4 +235,12 @@ String MqttManager::buildOtaTopic() const
     char otaTopicBuf[100];
     snprintf(otaTopicBuf, sizeof(otaTopicBuf), OTA_TOPIC_TEMPLATE, productId.c_str());
     return String(otaTopicBuf);
+}
+
+String MqttManager::buildStateTopic() const
+{
+    String productId = const_cast<MqttManager *>(this)->getProductId();
+    char stateTopicBuf[100];
+    snprintf(stateTopicBuf, sizeof(stateTopicBuf), STATE_TOPIC_TEMPLATE, productId.c_str());
+    return String(stateTopicBuf);
 }
