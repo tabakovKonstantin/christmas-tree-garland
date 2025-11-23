@@ -3,20 +3,22 @@
 
 #include <Arduino.h>
 
-// Simple HTTP-based OTA updater for ESP8266.
-// Triggered via MQTT: firmware URL comes from the MQTT message payload.
-// This is intended for remote devices (friends' garlands) where you cannot
-// use local ArduinoOTA/esptool directly.
+// HTTP-based OTA updater for ESP8266.
+// Триггерится из MQTT: в payload прилетает URL прошивки.
+// Реализация теперь на асинхронном TCP-клиенте (ESPAsyncTCP / AsyncClient):
+//  - создаём AsyncClient
+//  - шлём HTTP GET в onConnect
+//  - в onData парсим статус/заголовки и льём тело в Update.
+//  - по завершении прошивки перезагружаем устройство.
 class HttpOtaUpdater
 {
 public:
-    // Start OTA update from the given HTTP/HTTPS URL.
-    // Example URL: "http://your-server.com/garland/firmware.bin"
+    // Запустить OTA по указанному URL.
+    // Пример: "http://192.168.20.5:8080/firmware.bin"
     //
-    // Notes:
-    //  - This function is blocking while downloading and flashing.
-    //  - On success, ESP will reboot automatically.
-    //  - On failure, it prints detailed logs and returns to normal operation.
+    // Ограничения:
+    //  - Только HTTP (http://). HTTPS не поддерживается.
+    //  - Сервер должен отдавать прошивку с кодом 200 и заголовком Content-Length.
     static void updateFromUrl(const String &url);
 };
 
