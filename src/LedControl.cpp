@@ -7,7 +7,12 @@ void LedControl::initLEDs()
 {
     Serial.println("Initializing LEDs...");
     delay(1000);
-    FastLED.addLeds<LED_TYPE, LED_PIN, COLOR_ORDER>(leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
+    FastLED.addLeds<LED_TYPE, LED_PIN, COLOR_ORDER>(leds, NUM_LEDS)
+        .setCorrection(TypicalLEDStrip);
+
+    // Disable temporal dithering to avoid visible flicker on low brightness / pink colors.
+    FastLED.setDither(false);
+
     FastLED.delay(UPDATES_PER_SECOND);
     FastLED.setBrightness(BRIGHTNESS);
     FastLED.clear(true);

@@ -11,7 +11,7 @@
 #define BRIGHTNESS 10
 #define LED_TYPE SK6812
 #define COLOR_ORDER RGB
-#define UPDATES_PER_SECOND 30
+#define UPDATES_PER_SECOND 120
 
 class LedControl {
 private:
