@@ -20,6 +20,10 @@ public:
         }
         return config.fromJson(jsonString);
     }
+
+    static void eraseConfig() {
+        FileManager::removeFile(CONFIG_FILE);
+    }
 };
 
 #endif

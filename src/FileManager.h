@@ -2,14 +2,27 @@
 #define FILE_MANAGER_H
 
 #include <LittleFS.h>
+#include "LedControl.h"
+
+extern LedControl ledControl;
 
 class FileManager
 {
 public:
     static bool begin()
-
     {
-        return LittleFS.begin();
+        bool result = LittleFS.begin();
+        if (!result)
+        {
+            Serial.println("Ошибка инициализации файловой системы");
+            ledControl.showError();
+        }
+        else
+        {
+            Serial.println("Файловая система инициализирована успешно");
+            ledControl.showSuccess();
+        }
+        return result;
     }
 
     static bool saveToFile(const char *filename, const String &data)
@@ -20,6 +33,7 @@ public:
             Serial.println();
             Serial.print("Ошибка открытия файла для записи: ");
             Serial.println(filename);
+            ledControl.showError();
             return false;
         }
         file.print(data);
@@ -29,6 +43,7 @@ public:
         Serial.print(filename);
         Serial.print(" данные: ");
         Serial.println(data);
+        ledControl.showSuccess();
         return true;
     }
 
@@ -40,6 +55,7 @@ public:
             Serial.println();
             Serial.print("Ошибка открытия файла для чтения: ");
             Serial.println(filename);
+            ledControl.showError();
             return "";
         }
         String data = file.readString();
@@ -49,7 +65,29 @@ public:
         Serial.print(filename);
         Serial.print(" данные: ");
         Serial.println(data);
+        ledControl.showSuccess();
         return data;
+    }
+
+    static void removeFile(const char *filename)
+    {
+        if (LittleFS.exists(filename))
+        {
+            if (LittleFS.remove(filename))
+            {
+                Serial.println("File removed successfully.");
+                ledControl.showSuccess();
+            }
+            else
+            {
+                Serial.println("Failed to remove file.");
+                ledControl.showError();
+            }
+            return;
+        }
+        Serial.println("File does not exist.");
+        ledControl.showError();
+        return;
     }
 };
 

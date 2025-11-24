@@ -5,6 +5,8 @@
 #include "RainbowEffect.h"
 #include "SparkleEffect.h"
 #include "SmoothWaveEffect.h"
+#include "TreeEffect.h"
+#include "FireEffect.h"
 
 class EffectFactory
 {
@@ -16,13 +18,24 @@ public:
             return new RainbowEffect();
         }
 
-        if (effectName == "Smooth wave") {
+        if (effectName == "Smooth wave")
+        {
             return new SmoothWaveEffect();
         }
 
         if (effectName == "Sparkle")
         {
             return new SparkleEffect();
+        }
+
+        if (effectName == "Tree")
+        {
+            return new TreeEffect();
+        }
+
+        if (effectName == "Halloween Flame")
+        {
+            return new FireEffect();
         }
 
         return nullptr;

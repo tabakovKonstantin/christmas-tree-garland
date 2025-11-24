@@ -7,18 +7,25 @@ class Config {
 public:
     String mqttServer;
     int mqttPort;
+    String mqttUsername;
+    String mqttPassword;
+    String wifiSSID;
+    String wifiPassword;
 
     String toJson() const {
         JsonDocument jsonDoc; 
         jsonDoc["mqttServer"] = mqttServer;
         jsonDoc["mqttPort"] = mqttPort;
+        jsonDoc["mqttUsername"] = mqttUsername;
+        jsonDoc["mqttPassword"] = mqttPassword;
+        jsonDoc["wifiSSID"] = wifiSSID;
+        jsonDoc["wifiPassword"] = wifiPassword;
 
         String jsonString;
         serializeJson(jsonDoc, jsonString);
         return jsonString;
     }
 
-    // Метод для заполнения объекта из JSON строки
     bool fromJson(const String& jsonString) {
         JsonDocument jsonDoc;
         DeserializationError error = deserializeJson(jsonDoc, jsonString);
@@ -29,6 +36,10 @@ public:
 
         mqttServer = jsonDoc["mqttServer"].as<String>();
         mqttPort = jsonDoc["mqttPort"].as<int>();
+        mqttUsername = jsonDoc["mqttUsername"].as<String>();
+        mqttPassword = jsonDoc["mqttPassword"].as<String>();
+        wifiSSID = jsonDoc["wifiSSID"].as<String>();
+        wifiPassword = jsonDoc["wifiPassword"].as<String>();
         return true;
     }
 
