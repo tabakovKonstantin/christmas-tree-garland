@@ -48,6 +48,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Prepare firmware file
+        run: cp .pio/build/esp12e/firmware.bin firmware_${{ github.run_number }}.bin
+
       - name: Copy artifact to server
         uses: appleboy/scp-action@v1
         with:
@@ -55,5 +58,5 @@ jobs:
           username: ${{ secrets.USERNAME }}
           password: ${{ secrets.PASSWORD }}
           port: ${{ secrets.PORT }}
-          source: .pio/build/esp12e/firmware.bin
-          target: /root/project/firmwares/firmware_${{ github.run_number }}.bin
+          source: "firmware_${{ github.run_number }}.bin"
+          target: "/root/project/firmwares"
