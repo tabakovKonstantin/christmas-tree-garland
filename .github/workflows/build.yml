@@ -40,10 +40,20 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: fw-${{ github.run_number }}
+          tag_name: release
           name: Firmware build ${{ github.run_number }}
           draft: false
           prerelease: false
           files: .pio/build/esp12e/firmware.bin
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Copy artifact to server
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          password: ${{ secrets.PASSWORD }}
+          port: ${{ secrets.PORT }}
+          source: .pio/build/esp12e/firmware.bin
+          target: /root/project/firmwares/firmware_${{ github.run_number }}.bin
