@@ -36,3 +36,14 @@ jobs:
         with:
           name: firmware
           path: .pio/build/esp12e/*.bin
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: fw-${{ github.run_number }}
+          name: Firmware build ${{ github.run_number }}
+          draft: false
+          prerelease: false
+          files: .pio/build/esp12e/firmware.bin
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
