@@ -1,7 +1,7 @@
 #ifndef WIFI_MANAGER_H
 #define WIFI_MANAGER_H
 
-#include <Arduino.h> 
+#include <Arduino.h>
 #include "ESPAsyncWebServer.h"
 #include <ESPAsyncTCP.h>
 

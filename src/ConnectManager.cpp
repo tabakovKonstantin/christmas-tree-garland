@@ -229,6 +229,19 @@ button:hover {
 <input id='mqtt_pass' type='password' name='mqtt_pass' placeholder='MQTT Password'>
 </div>
 
+<div class='section'>
+<h3>💡 LED strip</h3>
+<label for='color_order'>LED color order:</label>
+<select id='color_order' name='color_order'>
+  <option value='GRB' selected>GRB (most common)</option>
+  <option value='RGB'>RGB</option>
+  <option value='RBG'>RBG</option>
+  <option value='GBR'>GBR</option>
+  <option value='BRG'>BRG</option>
+  <option value='BGR'>BGR</option>
+</select>
+</div>
+
 <button type='submit'>🎅 Save Configuration</button>
 <p class='footer'>Made with ❤️ for Christmas</p>
 </form>
@@ -254,6 +267,7 @@ void handleConfigRequest(AsyncWebServerRequest *request)
     int mqttPort = 1883;
     String mqttUser = "";
     String mqttPass = "";
+    String colorOrder = "GRB";
 
     if (request->hasParam("ssid", true))
         ssid = request->getParam("ssid", true)->value();
@@ -271,6 +285,8 @@ void handleConfigRequest(AsyncWebServerRequest *request)
         mqttUser = request->getParam("mqtt_user", true)->value();
     if (request->hasParam("mqtt_pass", true))
         mqttPass = request->getParam("mqtt_pass", true)->value();
+    if (request->hasParam("color_order", true))
+        colorOrder = request->getParam("color_order", true)->value();
 
     if (ssid.length() > 0 && password.length() > 0)
     {
@@ -280,6 +296,7 @@ void handleConfigRequest(AsyncWebServerRequest *request)
         config.mqttPassword = mqttPass;
         config.wifiSSID = ssid;
         config.wifiPassword = password;
+        config.colorOrder = colorOrder;
 
         if (ConfigManager::saveConfig(config))
         {

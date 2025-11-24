@@ -52,8 +52,10 @@ void setup()
 
   checkDoubleReset();
 
+  // Сначала инициализируем LEDs (как было изначально)
   ledControl.initLEDs();
 
+  // Потом WiFi + конфиг портал
   initWiFi();
 
   if (WiFi.getMode() == WIFI_STA && WiFi.isConnected())

@@ -1,5 +1,6 @@
 #include "LedControl.h"
 #include "effect/EffectFactory.h"
+#include "ConfigManager.h"
 
 LedControl::LedControl(EffectManager &manager) : effectManager(manager) {}
 
@@ -7,8 +8,51 @@ void LedControl::initLEDs()
 {
     Serial.println("Initializing LEDs...");
     delay(1000);
-    FastLED.addLeds<LED_TYPE, LED_PIN, COLOR_ORDER>(leds, NUM_LEDS)
-        .setCorrection(TypicalLEDStrip);
+
+    // Берём порядок из конфигов (строка: "RGB", "GRB", ...).
+    // Если в конфиге нет colorOrder — используем GRB по умолчанию.
+    String orderName = "GRB";
+
+    Config cfg;
+    if (ConfigManager::loadConfig(cfg))
+    {
+        if (cfg.colorOrder.length() > 0)
+        {
+            orderName = cfg.colorOrder;
+        }
+    }
+
+    // Выбираем шаблон FastLED.addLeds по названию порядка.
+    if (orderName.equalsIgnoreCase("RGB"))
+    {
+        FastLED.addLeds<LED_TYPE, LED_PIN, RGB>(leds, NUM_LEDS)
+            .setCorrection(TypicalLEDStrip);
+    }
+    else if (orderName.equalsIgnoreCase("RBG"))
+    {
+        FastLED.addLeds<LED_TYPE, LED_PIN, RBG>(leds, NUM_LEDS)
+            .setCorrection(TypicalLEDStrip);
+    }
+    else if (orderName.equalsIgnoreCase("GBR"))
+    {
+        FastLED.addLeds<LED_TYPE, LED_PIN, GBR>(leds, NUM_LEDS)
+            .setCorrection(TypicalLEDStrip);
+    }
+    else if (orderName.equalsIgnoreCase("BRG"))
+    {
+        FastLED.addLeds<LED_TYPE, LED_PIN, BRG>(leds, NUM_LEDS)
+            .setCorrection(TypicalLEDStrip);
+    }
+    else if (orderName.equalsIgnoreCase("BGR"))
+    {
+        FastLED.addLeds<LED_TYPE, LED_PIN, BGR>(leds, NUM_LEDS)
+            .setCorrection(TypicalLEDStrip);
+    }
+    else // default + "RGB" / unknown
+    {
+        FastLED.addLeds<LED_TYPE, LED_PIN, RGB>(leds, NUM_LEDS)
+            .setCorrection(TypicalLEDStrip);
+    }
 
     FastLED.setDither(false);
 

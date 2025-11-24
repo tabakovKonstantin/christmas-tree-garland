@@ -11,6 +11,7 @@ public:
     String mqttPassword;
     String wifiSSID;
     String wifiPassword;
+    String colorOrder; // LED color order, e.g. "GRB"
 
     String toJson() const {
         JsonDocument jsonDoc; 
@@ -20,6 +21,7 @@ public:
         jsonDoc["mqttPassword"] = mqttPassword;
         jsonDoc["wifiSSID"] = wifiSSID;
         jsonDoc["wifiPassword"] = wifiPassword;
+        jsonDoc["colorOrder"] = colorOrder;
 
         String jsonString;
         serializeJson(jsonDoc, jsonString);
@@ -40,6 +42,7 @@ public:
         mqttPassword = jsonDoc["mqttPassword"].as<String>();
         wifiSSID = jsonDoc["wifiSSID"].as<String>();
         wifiPassword = jsonDoc["wifiPassword"].as<String>();
+        colorOrder = jsonDoc["colorOrder"].as<String>();
         return true;
     }
 
