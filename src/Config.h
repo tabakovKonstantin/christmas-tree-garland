@@ -11,7 +11,7 @@ public:
     String mqttPassword;
     String wifiSSID;
     String wifiPassword;
-    String colorOrder; // LED color order, e.g. "GRB"
+    String colorOrder; // LED color order, e.g. "RGB"
 
     String toJson() const {
         JsonDocument jsonDoc; 

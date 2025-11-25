@@ -233,8 +233,8 @@ button:hover {
 <h3>💡 LED strip</h3>
 <label for='color_order'>LED color order:</label>
 <select id='color_order' name='color_order'>
-  <option value='GRB' selected>GRB (most common)</option>
-  <option value='RGB'>RGB</option>
+  <option value='RGB' selected>RGB (default)</option>
+  <option value='GRB'>GRB</option>
   <option value='RBG'>RBG</option>
   <option value='GBR'>GBR</option>
   <option value='BRG'>BRG</option>
@@ -267,7 +267,7 @@ void handleConfigRequest(AsyncWebServerRequest *request)
     int mqttPort = 1883;
     String mqttUser = "";
     String mqttPass = "";
-    String colorOrder = "GRB";
+    String colorOrder = "RGB"; // default RGB
 
     if (request->hasParam("ssid", true))
         ssid = request->getParam("ssid", true)->value();

@@ -10,8 +10,8 @@ void LedControl::initLEDs()
     delay(1000);
 
     // Берём порядок из конфигов (строка: "RGB", "GRB", ...).
-    // Если в конфиге нет colorOrder — используем GRB по умолчанию.
-    String orderName = "GRB";
+    // Если в конфиге нет colorOrder — используем RGB по умолчанию.
+    String orderName = "RGB";
 
     Config cfg;
     if (ConfigManager::loadConfig(cfg))
@@ -33,6 +33,11 @@ void LedControl::initLEDs()
         FastLED.addLeds<LED_TYPE, LED_PIN, RBG>(leds, NUM_LEDS)
             .setCorrection(TypicalLEDStrip);
     }
+    else if (orderName.equalsIgnoreCase("GRB"))
+    {
+        FastLED.addLeds<LED_TYPE, LED_PIN, GRB>(leds, NUM_LEDS)
+            .setCorrection(TypicalLEDStrip);
+    }
     else if (orderName.equalsIgnoreCase("GBR"))
     {
         FastLED.addLeds<LED_TYPE, LED_PIN, GBR>(leds, NUM_LEDS)
@@ -48,7 +53,7 @@ void LedControl::initLEDs()
         FastLED.addLeds<LED_TYPE, LED_PIN, BGR>(leds, NUM_LEDS)
             .setCorrection(TypicalLEDStrip);
     }
-    else // default + "RGB" / unknown
+    else // unknown string -> fallback to RGB
     {
         FastLED.addLeds<LED_TYPE, LED_PIN, RGB>(leds, NUM_LEDS)
             .setCorrection(TypicalLEDStrip);
