@@ -19,16 +19,13 @@ MqttManager::MqttManager(LedControl &led_Control)
       lightHandler(led_Control),
       otaHandler(led_Control)
 {
-    // Build topics once based on chip ID.
     commandTopic = buildCommandTopic();
     otaTopic = buildOtaTopic();
     stateTopic = buildStateTopic();
 
-    // Configure handlers with their dedicated topics.
     lightHandler.setTopic(commandTopic);
     otaHandler.setTopic(otaTopic);
 
-    // Register handlers in router.
     router.addHandler(&lightHandler);
     router.addHandler(&otaHandler);
 }
@@ -136,13 +133,10 @@ void MqttManager::onMqttMessage(char *topic,
 
     String topicStr(topic);
 
-    // Delegate logic to router and handlers.
     router.route(topicStr, message);
 
-    // If this was a command to change light state, publish the new state.
     if (topicStr == commandTopic)
     {
-        // Reuse the incoming payload as state representation.
         mqttClient.publish(stateTopic.c_str(), 1, true, message.c_str());
     }
 }
@@ -175,7 +169,8 @@ void MqttManager::publishDiscoveryMessage()
     effectList.add("Halloween Flame");
 
     doc["schema"] = "json";
-    doc["optimistic"] = true;
+
+    // Removed: doc["optimistic"] = true;
 
     String message;
     serializeJson(doc, message);
@@ -186,7 +181,6 @@ void MqttManager::publishDiscoveryMessage()
 
 void MqttManager::publishInitialState()
 {
-    // Build a minimal initial state payload for Home Assistant.
     Payload p;
     p.brightness = BRIGHTNESS;
     p.color_mode = "rgb";
