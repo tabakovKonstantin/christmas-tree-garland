@@ -23,6 +23,10 @@ private:
 
     bool isOn = false;
 
+    // Текущее известное состояние лампы, которое
+    // является single source of truth для MQTT state.
+    Payload currentState;
+
     void eventFlash();
     void showEventNotification(const CRGB& color, int flashes = 8, int delayMs = 300);
 
@@ -36,10 +40,18 @@ private:
 public:
     LedControl(EffectManager& manager);
     void initLEDs();
+
+    // Принимает инкрементальное состояние (как из MQTT),
+    // мержит его с currentState, применяет к железу
+    // и обновляет currentState.
     void changeState(const Payload& payload);
+
     void setLEDColor(uint32_t color);
     void setLEDBrightness(int brightness);
     void setLEDEffect(String effect);
+
+    // Возвращаем текущий стейт для публикации в MQTT.
+    const Payload& getCurrentState() const;
 
     void showSuccess();
     void showError();

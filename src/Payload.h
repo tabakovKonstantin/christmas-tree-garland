@@ -7,8 +7,7 @@ class Payload
 {
 public:
     int brightness;
-    String color_mode;
-    int color_temp;
+    String color_mode; // логически константное значение "rgb"
     struct Color
     {
         int r, g, b, c, w;
@@ -17,15 +16,32 @@ public:
     String state;
     int transition;
 
+    Payload()
+        : brightness(-1),
+          color_mode("rgb"),
+          effect("null"),
+          state("OFF"),
+          transition(0)
+    {
+        color.r = -1;
+        color.g = -1;
+        color.b = -1;
+        color.c = -1;
+        color.w = -1;
+    }
+
     String toJson() const
     {
         JsonDocument doc;
         doc["brightness"] = brightness;
-        doc["color_mode"] = color_mode;
-        doc["color_temp"] = color_temp;
+
+        // color_mode всегда константа "rgb", не зависит от входящих команд
+        doc["color_mode"] = "rgb";
+
         doc["color"]["r"] = color.r;
         doc["color"]["g"] = color.g;
         doc["color"]["b"] = color.b;
+
         doc["effect"] = effect;
         doc["state"] = state;
         doc["transition"] = transition;
@@ -45,12 +61,19 @@ public:
             return false;
         }
 
+        // Если поле не пришло — ставим -1 как "нет значения".
         brightness = doc["brightness"].isNull() ? -1 : doc["brightness"];
-        color_mode = doc["color_mode"].as<String>();
-        color_temp = doc["color_temp"];
+
+        // color_mode и color_temp из входящего JSON полностью игнорируем,
+        // мы всегда работаем в режиме "rgb".
+        color_mode = "rgb";
+
         color.r = doc["color"]["r"].isNull() ? -1 : doc["color"]["r"];
         color.g = doc["color"]["g"].isNull() ? -1 : doc["color"]["g"];
         color.b = doc["color"]["b"].isNull() ? -1 : doc["color"]["b"];
+        color.c = -1;
+        color.w = -1;
+
         effect = doc["effect"].as<String>();
         state = doc["state"].as<String>();
         transition = doc["transition"];

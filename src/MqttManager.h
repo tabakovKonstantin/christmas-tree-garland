@@ -16,7 +16,7 @@
 class MqttManager
 {
 public:
-    MqttManager(LedControl& led_Control);
+    explicit MqttManager(LedControl& led_Control);
     void init();
 
 private:

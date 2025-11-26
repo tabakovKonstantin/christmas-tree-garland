@@ -1,6 +1,7 @@
 #include "MqttManager.h"
 #include "ConfigManager.h"
 #include "LedControl.h"
+#include "Payload.h"
 #include <Ticker.h>
 #include <ArduinoJson.h>
 #include <ESP8266WiFi.h>
@@ -19,13 +20,16 @@ MqttManager::MqttManager(LedControl &led_Control)
       lightHandler(led_Control),
       otaHandler(led_Control)
 {
+    // Build topics once based on chip ID.
     commandTopic = buildCommandTopic();
     otaTopic = buildOtaTopic();
     stateTopic = buildStateTopic();
 
+    // Configure handlers with their dedicated topics.
     lightHandler.setTopic(commandTopic);
     otaHandler.setTopic(otaTopic);
 
+    // Register handlers in router.
     router.addHandler(&lightHandler);
     router.addHandler(&otaHandler);
 }
@@ -133,11 +137,27 @@ void MqttManager::onMqttMessage(char *topic,
 
     String topicStr(topic);
 
+    // Логика обработки команд (изменение состояния железа)
+    // целиком внутри LightCommandHandler / LedControl.
     router.route(topicStr, message);
 
+    // Если это была команда изменения света — публикуем ТЕКУЩЕЕ состояние,
+    // полученное из LedControl, а не просто "то, что пришло".
     if (topicStr == commandTopic)
     {
-        mqttClient.publish(stateTopic.c_str(), 1, true, message.c_str());
+        Payload state = ledControl.getCurrentState();
+
+        // color_mode ДОЛЖЕН быть всегда, как минимум "rgb".
+        if (state.color_mode.length() == 0)
+        {
+            state.color_mode = "rgb";
+        }
+
+        String stateJson = state.toJson();
+        mqttClient.publish(stateTopic.c_str(), 1, true, stateJson.c_str());
+
+        Serial.print("  [MQTT] Published state: ");
+        Serial.println(stateJson);
     }
 }
 
@@ -169,8 +189,8 @@ void MqttManager::publishDiscoveryMessage()
     effectList.add("Halloween Flame");
 
     doc["schema"] = "json";
-
-    // Removed: doc["optimistic"] = true;
+    // В discovery не указываем optimistic режим —
+    // работаем по state_topic, который мы сами публикуем.
 
     String message;
     serializeJson(doc, message);
@@ -181,23 +201,18 @@ void MqttManager::publishDiscoveryMessage()
 
 void MqttManager::publishInitialState()
 {
-    Payload p;
-    p.brightness = BRIGHTNESS;
-    p.color_mode = "rgb";
-    p.color_temp = 0;
+    // Публикуем текущее состояние, которое знает LedControl.
+    Payload state = ledControl.getCurrentState();
+    if (state.color_mode.length() == 0)
+    {
+        state.color_mode = "rgb";
+    }
 
-    p.color.r = -1;
-    p.color.g = -1;
-    p.color.b = -1;
-    p.color.c = -1;
-    p.color.w = -1;
-
-    p.effect = "null";
-    p.state = "OFF";
-    p.transition = 0;
-
-    String json = p.toJson();
+    String json = state.toJson();
     mqttClient.publish(stateTopic.c_str(), 1, true, json.c_str());
+
+    Serial.print("Initial state published: ");
+    Serial.println(json);
 }
 
 String MqttManager::getProductId()

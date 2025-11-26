@@ -2,18 +2,39 @@
 #include "effect/EffectFactory.h"
 #include "ConfigManager.h"
 
-LedControl::LedControl(EffectManager &manager) : effectManager(manager) {}
+// -------------------------------------------------------
+//  КОНСТРУКТОР
+// -------------------------------------------------------
+LedControl::LedControl(EffectManager &manager) : effectManager(manager)
+{
+    // Инициализация дефолта состояния
+    currentState.brightness = BRIGHTNESS;
 
+    currentState.color.r = -1;
+    currentState.color.g = -1;
+    currentState.color.b = -1;
+    currentState.color.c = -1;
+    currentState.color.w = -1;
+
+    currentState.color_mode = "rgb";  // константа
+
+    currentState.effect = "null";
+    currentState.state = "OFF";
+    currentState.transition = 0;
+}
+
+// -------------------------------------------------------
+//  ИНИЦИАЛИЗАЦИЯ СВЕТОДИОДОВ
+// -------------------------------------------------------
 void LedControl::initLEDs()
 {
     Serial.println("Initializing LEDs...");
     delay(1000);
 
-    // Берём порядок из конфигов (строка: "RGB", "GRB", ...).
-    // Если в конфиге нет colorOrder — используем RGB по умолчанию.
+    // Читаем конфиг для цветового порядка
     String orderName = "RGB";
-
     Config cfg;
+
     if (ConfigManager::loadConfig(cfg))
     {
         if (cfg.colorOrder.length() > 0)
@@ -22,46 +43,23 @@ void LedControl::initLEDs()
         }
     }
 
-    // Выбираем шаблон FastLED.addLeds по названию порядка.
+    // Выбор LED порядка (шаблон FastLED требует compile-time параметров)
     if (orderName.equalsIgnoreCase("RGB"))
-    {
-        FastLED.addLeds<LED_TYPE, LED_PIN, RGB>(leds, NUM_LEDS)
-            .setCorrection(TypicalLEDStrip);
-    }
+        FastLED.addLeds<LED_TYPE, LED_PIN, RGB>(leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
     else if (orderName.equalsIgnoreCase("RBG"))
-    {
-        FastLED.addLeds<LED_TYPE, LED_PIN, RBG>(leds, NUM_LEDS)
-            .setCorrection(TypicalLEDStrip);
-    }
+        FastLED.addLeds<LED_TYPE, LED_PIN, RBG>(leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
     else if (orderName.equalsIgnoreCase("GRB"))
-    {
-        FastLED.addLeds<LED_TYPE, LED_PIN, GRB>(leds, NUM_LEDS)
-            .setCorrection(TypicalLEDStrip);
-    }
+        FastLED.addLeds<LED_TYPE, LED_PIN, GRB>(leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
     else if (orderName.equalsIgnoreCase("GBR"))
-    {
-        FastLED.addLeds<LED_TYPE, LED_PIN, GBR>(leds, NUM_LEDS)
-            .setCorrection(TypicalLEDStrip);
-    }
+        FastLED.addLeds<LED_TYPE, LED_PIN, GBR>(leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
     else if (orderName.equalsIgnoreCase("BRG"))
-    {
-        FastLED.addLeds<LED_TYPE, LED_PIN, BRG>(leds, NUM_LEDS)
-            .setCorrection(TypicalLEDStrip);
-    }
+        FastLED.addLeds<LED_TYPE, LED_PIN, BRG>(leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
     else if (orderName.equalsIgnoreCase("BGR"))
-    {
-        FastLED.addLeds<LED_TYPE, LED_PIN, BGR>(leds, NUM_LEDS)
-            .setCorrection(TypicalLEDStrip);
-    }
-    else // unknown string -> fallback to RGB
-    {
-        FastLED.addLeds<LED_TYPE, LED_PIN, RGB>(leds, NUM_LEDS)
-            .setCorrection(TypicalLEDStrip);
-    }
+        FastLED.addLeds<LED_TYPE, LED_PIN, BGR>(leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
+    else
+        FastLED.addLeds<LED_TYPE, LED_PIN, RGB>(leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
 
     FastLED.setDither(false);
-
-    FastLED.delay(UPDATES_PER_SECOND);
     FastLED.setBrightness(BRIGHTNESS);
     FastLED.clear(true);
     FastLED.show();
@@ -69,6 +67,9 @@ void LedControl::initLEDs()
     isOn = false;
 }
 
+// -------------------------------------------------------
+//  EVENT FLASH / SUCCESS / ERROR
+// -------------------------------------------------------
 void LedControl::eventFlash()
 {
     if (eventStep >= eventTotalFlashes * 2)
@@ -80,13 +81,9 @@ void LedControl::eventFlash()
     }
 
     if (eventStep % 2 == 0)
-    {
         fill_solid(leds, NUM_LEDS, eventColor);
-    }
     else
-    {
         fill_solid(leds, NUM_LEDS, CRGB::Black);
-    }
 
     FastLED.show();
     eventStep++;
@@ -98,7 +95,9 @@ void LedControl::showEventNotification(const CRGB &color, int flashes, int delay
     eventStep = 0;
     eventTotalFlashes = flashes;
     eventColor = color;
-    eventTicker.attach_ms(delayMs, [this]() { this->eventFlash(); });
+
+    eventTicker.attach_ms(delayMs, [this]()
+                          { this->eventFlash(); });
 }
 
 void LedControl::showSuccess()
@@ -111,6 +110,9 @@ void LedControl::showError()
     showEventNotification(CRGB::Red, 6, 600);
 }
 
+// -------------------------------------------------------
+//  DEFAULT WARM LOGIC
+// -------------------------------------------------------
 bool LedControl::shouldUseWarmDefault(const Payload &payload,
                                       bool hasBrightness,
                                       bool hasColorRGB,
@@ -118,32 +120,22 @@ bool LedControl::shouldUseWarmDefault(const Payload &payload,
                                       bool isCurrentlyOn) const
 {
     if (!hasBrightness)
-    {
         return false;
-    }
 
     if (hasColorRGB || hasEffect)
-    {
         return false;
-    }
 
     bool hasState = payload.state.length() > 0;
     bool stateOn = payload.state.equalsIgnoreCase("ON");
 
     if (isCurrentlyOn)
-    {
         return false;
-    }
 
     if (!hasState)
-    {
         return true;
-    }
 
     if (stateOn)
-    {
         return true;
-    }
 
     return false;
 }
@@ -151,88 +143,129 @@ bool LedControl::shouldUseWarmDefault(const Payload &payload,
 void LedControl::applyWarmDefault(int brightness)
 {
     Serial.println("Applying warm yellow default state.");
+
     setLEDBrightness(brightness);
 
-    CRGB warmYellow = CRGB(255, 200, 120);
+    CRGB warmYellow(255, 200, 120);
     fill_solid(leds, NUM_LEDS, warmYellow);
     FastLED.show();
 
     isOn = true;
 }
 
+// -------------------------------------------------------
+//  CHANGE STATE
+// -------------------------------------------------------
 void LedControl::changeState(const Payload &payload)
 {
     Serial.println("Applying new state...");
 
+    Payload next = currentState;
+
     bool hasBrightness = payload.brightness != -1;
-    bool hasColorRGB = (payload.color.r != -1 && payload.color.g != -1 && payload.color.b != -1);
+    bool hasColorRGB = (payload.color.r != -1 &&
+                        payload.color.g != -1 &&
+                        payload.color.b != -1);
     bool hasEffect = (payload.effect != "null" && payload.effect.length() > 0);
 
-    if (shouldUseWarmDefault(payload, hasBrightness, hasColorRGB, hasEffect, isOn))
-    {
-        applyWarmDefault(payload.brightness);
-        Serial.println("Applying has finished");
-        return;
-    }
+    bool useWarm = shouldUseWarmDefault(payload, hasBrightness, hasColorRGB, hasEffect, isOn);
 
-    if (hasBrightness)
+    if (useWarm)
     {
-        setLEDBrightness(payload.brightness);
-    }
+        int brightness = hasBrightness ? payload.brightness : next.brightness;
 
-    if (hasColorRGB)
-    {
-        uint32_t color = (payload.color.r << 16) | (payload.color.g << 8) | payload.color.b;
-        setLEDColor(color);
-    }
+        applyWarmDefault(brightness);
 
-    if (payload.effect != "null")
-    {
-        setLEDEffect(payload.effect);
+        next.brightness = brightness;
+        next.state = "ON";
+        next.color.r = 255;
+        next.color.g = 200;
+        next.color.b = 120;
+        next.effect = "null";
     }
-    else if (payload.brightness == -1)
+    else
     {
-        effectManager.setEffect(nullptr);
-    }
-
-    if (payload.state.equalsIgnoreCase("OFF"))
-    {
-        Serial.println("Turn off");
-        FastLED.clear();
-        isOn = false;
-    }
-    else if (payload.state.equalsIgnoreCase("ON"))
-    {
-        if (payload.color.r == -1 && payload.brightness == -1 && payload.effect == "null")
+        if (hasBrightness)
         {
-            Serial.println("Turn on");
-            fill_solid(leds, NUM_LEDS, CRGB::White);
+            setLEDBrightness(payload.brightness);
+            next.brightness = payload.brightness;
         }
-        isOn = true;
+
+        if (hasColorRGB)
+        {
+            uint32_t rgb = (payload.color.r << 16) |
+                           (payload.color.g << 8) |
+                           payload.color.b;
+
+            setLEDColor(rgb);
+
+            next.color.r = payload.color.r;
+            next.color.g = payload.color.g;
+            next.color.b = payload.color.b;
+        }
+
+        if (hasEffect)
+        {
+            setLEDEffect(payload.effect);
+            next.effect = payload.effect;
+        }
+        else if (payload.brightness == -1)
+        {
+            effectManager.setEffect(nullptr);
+            next.effect = "null";
+        }
+
+        if (payload.state.equalsIgnoreCase("OFF"))
+        {
+            FastLED.clear();
+            isOn = false;
+            next.state = "OFF";
+        }
+        else if (payload.state.equalsIgnoreCase("ON"))
+        {
+            if (!hasColorRGB && payload.effect == "null" && payload.brightness == -1)
+            {
+                fill_solid(leds, NUM_LEDS, CRGB::White);
+                next.color.r = 255;
+                next.color.g = 255;
+                next.color.b = 255;
+            }
+            isOn = true;
+            next.state = "ON";
+        }
     }
+
+    if (payload.transition != 0)
+        next.transition = payload.transition;
+
+    next.color_mode = "rgb";
+
+    currentState = next;
 
     Serial.println("Applying has finished");
 }
 
+// -------------------------------------------------------
+//  SETTERS
+// -------------------------------------------------------
 void LedControl::setLEDColor(uint32_t color)
 {
-    Serial.print("Set color: ");
-    Serial.println(color);
     fill_solid(leds, NUM_LEDS, CRGB(color));
 }
 
 void LedControl::setLEDBrightness(int brightness)
 {
-    Serial.print("Set brightness: ");
-    Serial.println(brightness);
     FastLED.setBrightness(brightness);
 }
 
 void LedControl::setLEDEffect(String effect)
 {
-    Serial.print("Set effect: ");
-    Serial.println(effect);
-    Effect *newEffect = EffectFactory::createEffect(effect);
-    effectManager.setEffect(newEffect);
+    Effect *eff = EffectFactory::createEffect(effect);
+    effectManager.setEffect(eff);
     effectManager.runEffect(leds, NUM_LEDS);
+}
+
+const Payload &LedControl::getCurrentState() const
+{
+    return currentState;
 }
