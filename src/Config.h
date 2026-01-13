@@ -5,16 +5,18 @@
 
 class Config {
 public:
+    bool mqttEnabled = true; // New field
     String mqttServer;
     int mqttPort;
     String mqttUsername;
     String mqttPassword;
     String wifiSSID;
     String wifiPassword;
-    String colorOrder; // LED color order, e.g. "RGB"
+    String colorOrder; 
 
     String toJson() const {
         JsonDocument jsonDoc; 
+        jsonDoc["mqttEnabled"] = mqttEnabled;
         jsonDoc["mqttServer"] = mqttServer;
         jsonDoc["mqttPort"] = mqttPort;
         jsonDoc["mqttUsername"] = mqttUsername;
@@ -32,10 +34,11 @@ public:
         JsonDocument jsonDoc;
         DeserializationError error = deserializeJson(jsonDoc, jsonString);
         if (error) {
-            Serial.println("Ошибка парсинга JSON: " + String(error.c_str()));
+            Serial.println("JSON parse error: " + String(error.c_str()));
             return false;
         }
 
+        mqttEnabled = jsonDoc["mqttEnabled"] | true;
         mqttServer = jsonDoc["mqttServer"].as<String>();
         mqttPort = jsonDoc["mqttPort"].as<int>();
         mqttUsername = jsonDoc["mqttUsername"].as<String>();
@@ -45,7 +48,6 @@ public:
         colorOrder = jsonDoc["colorOrder"].as<String>();
         return true;
     }
-
 };
 
-#endif // MY_CONFIG_H
+#endif

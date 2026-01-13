@@ -1,77 +1,51 @@
 #include <Arduino.h>
+#include <ESP8266mDNS.h>
 #include "ConnectManager.h"
 #include "FileManager.h"
 #include "ConfigManager.h"
 #include "MqttManager.h"
 #include "LedControl.h"
+#include "WebControlManager.h"
 #include "ota/OtaManager.h"
-#include <ESP8266WiFi.h>
-
-#define RESET_FLAG_FILE "/reset.flag"
-#define DOUBLE_RESET_TIMEOUT 5000
 
 EffectManager effectManager;
 LedControl ledControl(effectManager);
 MqttManager mqttManager(ledControl);
-
-void checkDoubleReset()
-{
-  if (LittleFS.exists(RESET_FLAG_FILE))
-  {
-    Serial.println("Double reset detected. Erasing configuration...");
-    ConfigManager::eraseConfig();
-    LittleFS.remove(RESET_FLAG_FILE);
-    delay(1000);
-    ESP.restart();
-  }
-  else
-  {
-    File flag = LittleFS.open(RESET_FLAG_FILE, "w");
-    if (flag)
-    {
-      flag.close();
-      Serial.println("First reset detected. Waiting for second reset...");
-      delay(DOUBLE_RESET_TIMEOUT);
-      LittleFS.remove(RESET_FLAG_FILE);
-      Serial.println("No second reset detected.");
-    }
-  }
-}
+WebControlManager webControl(ledControl);
+extern AsyncWebServer server; // From ConnectManager
+Config globalConfig;
 
 void setup()
 {
   Serial.begin(115200);
-  Serial.println();
-  Serial.println("Booting device...");
-
-  if (!FileManager::begin())
-  {
-    Serial.println("File system initialization failed");
-    return;
-  }
-
-  checkDoubleReset();
-
-  // Сначала инициализируем LEDs (как было изначально)
+  FileManager::begin();
+  
   ledControl.initLEDs();
-
-  // Потом WiFi + конфиг портал
   initWiFi();
 
-  if (WiFi.getMode() == WIFI_STA && WiFi.isConnected())
-  {
-    Serial.println("Wi-Fi connected in STA mode, enabling OTA and MQTT...");
+  if (WiFi.status() == WL_CONNECTED) {
+    ConfigManager::loadConfig(globalConfig);
+    
+    // Start mDNS
+    String dnsName = "garland-" + String(ESP.getChipId(), HEX);
+    if (MDNS.begin(dnsName.c_str())) {
+        Serial.printf("mDNS started: http://%s.local\n", dnsName.c_str());
+    }
+
     OtaManager::setup();
-    mqttManager.init();
-  }
-  else
-  {
-    Serial.println("Wi-Fi not connected in STA mode. OTA and MQTT are not started.");
+    
+    // Web UI is always available as a fallback
+    webControl.setup(server);
+    
+    if (globalConfig.mqttEnabled) {
+      mqttManager.init();
+    }
   }
 }
 
 void loop()
 {
   OtaManager::handle();
+  MDNS.update();
   FastLED.show();
 }
