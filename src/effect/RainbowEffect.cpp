@@ -19,5 +19,5 @@ void RainbowEffect::internalRun(CRGB *leds, int numLeds)
     }
 
     currentOffset++;
-    Serial.println(currentOffset);
+    // Serial.println(currentOffset); // Removed debug output
 }
