@@ -4,8 +4,8 @@
 WebControlManager::WebControlManager(LedControl& led) : ledControl(led) {}
 
 void WebControlManager::setup(AsyncWebServer& server) {
-    // Main UI Page
-    server.on("/", HTTP_GET, [this](AsyncWebServerRequest *request) {
+    // 1. MAIN UI PAGE HANDLER
+    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
         String html = R"rawliteral(
 <!DOCTYPE html>
 <html lang="en">
@@ -18,30 +18,25 @@ void WebControlManager::setup(AsyncWebServer& server) {
         .snow { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
         .container { position: relative; z-index: 1; max-width: 500px; margin: 0 auto; padding: 20px; }
         .card { background: rgba(255,255,255,0.1); border-radius: 16px; margin-bottom: 20px; padding: 20px; backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 4px 30px rgba(0,0,0,0.5); }
-        
         h1 { color: #f4d35e; text-shadow: 0 0 10px rgba(244,211,94,0.5); margin: 10px 0 30px; font-weight: 300; letter-spacing: 2px; }
         h3 { margin: 0 0 15px; font-weight: 400; color: #aaa; text-transform: uppercase; font-size: 0.9rem; letter-spacing: 1px; }
-
-        /* Power Button */
+        
         .pwr-btn {
             width: 80px; height: 80px; border-radius: 50%; border: none; outline: none; cursor: pointer;
             font-size: 24px; color: white; transition: all 0.3s ease;
             box-shadow: 0 0 15px rgba(0,0,0,0.5);
-            background: #444; /* Default Unknown/Off */
+            background: #444; display: flex; align-items: center; justify-content: center; margin: 0 auto;
         }
         .pwr-on { background: #2ecc71; box-shadow: 0 0 20px #2ecc71; }
         .pwr-off { background: #e74c3c; box-shadow: 0 0 20px #e74c3c; }
 
-        /* Slider */
         .slider-container { display: flex; align-items: center; gap: 15px; }
         input[type=range] { flex-grow: 1; height: 6px; border-radius: 5px; background: #555; outline: none; -webkit-appearance: none; }
         input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%; background: #f4d35e; cursor: pointer; box-shadow: 0 0 10px #f4d35e; }
         .percent { font-size: 1.2rem; font-weight: bold; width: 50px; text-align: right; }
 
-        /* Color Picker */
         input[type=color] { width: 100%; height: 50px; border: none; background: none; cursor: pointer; padding: 0; }
 
-        /* Select Dropdown */
         select {
             width: 100%; padding: 15px; border-radius: 10px; border: 1px solid #555;
             background: #222; color: white; font-size: 1.1rem; outline: none; cursor: pointer;
@@ -56,7 +51,7 @@ void WebControlManager::setup(AsyncWebServer& server) {
     <div class="container">
         <h1>🎄 Magic Garland</h1>
         
-        <div class="card" style="text-align: center;">
+        <div class="card">
             <button id="pwrBtn" class="pwr-btn pwr-on" onclick="togglePower()">
                 <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path><line x1="12" y1="2" x2="12" y2="12"></line></svg>
             </button>
@@ -65,7 +60,7 @@ void WebControlManager::setup(AsyncWebServer& server) {
         <div class="card">
             <h3>Brightness</h3>
             <div class="slider-container">
-                <input type="range" id="bright" min="0" max="255" oninput="updateBriDisplay(this.value)" onchange="sendUpdate()">
+                <input type="range" id="bright" min="0" max="255" value="128" oninput="updateBriDisplay(this.value)" onchange="sendUpdate()">
                 <span class="percent" id="briText">50%</span>
             </div>
         </div>
@@ -99,7 +94,6 @@ void WebControlManager::setup(AsyncWebServer& server) {
         function togglePower() {
             isPowerOn = !isPowerOn;
             updatePowerBtn();
-            
             fetch('/api/set', {
                 method: 'POST',
                 body: JSON.stringify({ state: isPowerOn ? "ON" : "OFF" })
@@ -118,20 +112,12 @@ void WebControlManager::setup(AsyncWebServer& server) {
         }
 
         function sendUpdate() {
-            if (!isPowerOn) {
-                isPowerOn = true;
-                updatePowerBtn();
-            }
-            
+            if (!isPowerOn) { isPowerOn = true; updatePowerBtn(); }
             const b = document.getElementById('bright').value;
             const c = document.getElementById('color').value;
             const r = parseInt(c.substr(1,2), 16);
             const g = parseInt(c.substr(3,2), 16);
             const b_val = parseInt(c.substr(5,2), 16);
-
-            // If we are changing color, force effect to null (Solid) in UI logic
-            // But usually user selects effect manually. 
-            // Let's just send color. If effect is active, hardware handles priority.
             
             fetch('/api/set', {
                 method: 'POST',
@@ -144,17 +130,13 @@ void WebControlManager::setup(AsyncWebServer& server) {
         }
 
         function setEffect(name) {
-            if (!isPowerOn) {
-                isPowerOn = true;
-                updatePowerBtn();
-            }
+            if (!isPowerOn) { isPowerOn = true; updatePowerBtn(); }
             fetch('/api/set', {
                 method: 'POST',
                 body: JSON.stringify({ state: "ON", effect: name })
             });
         }
 
-        // Snow Animation
         const canvas = document.getElementById('snowCanvas');
         const ctx = canvas.getContext('2d');
         let width, height, flakes = [];
@@ -163,10 +145,7 @@ void WebControlManager::setup(AsyncWebServer& server) {
             height = canvas.height = window.innerHeight;
             flakes = [];
             for(let i=0; i<80; i++) flakes.push({
-                x: Math.random()*width, 
-                y: Math.random()*height, 
-                r: Math.random()*2+1, 
-                d: Math.random()*1+0.5
+                x: Math.random()*width, y: Math.random()*height, r: Math.random()*2+1, d: Math.random()*1+0.5
             });
         }
         function drawSnow() {
@@ -191,23 +170,20 @@ void WebControlManager::setup(AsyncWebServer& server) {
         request->send(200, "text/html", html);
     });
 
-    // API Endpoint
-    server.on("/api/set", HTTP_POST, [](AsyncWebServerRequest *request) {}, NULL, 
+    // 2. API ENDPOINT HANDLER
+    server.on("/api/set", HTTP_POST, [](AsyncWebServerRequest *request){}, NULL, 
         [this](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
-            this->handleApiSet(request, data, len, index, total);
+            // Re-assemble the body
+            String payloadStr;
+            for (size_t i = 0; i < len; i++) payloadStr += (char)data[i];
+            
+            Payload incoming;
+            if (incoming.fromJson(payloadStr)) {
+                this->ledControl.changeState(incoming);
+                request->send(200, "application/json", "{\"status\":\"ok\"}");
+            } else {
+                request->send(400, "application/json", "{\"status\":\"error\"}");
+            }
         }
     );
-}
-
-void WebControlManager::handleApiSet(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
-    String payloadStr;
-    for (size_t i = 0; i < len; i++) payloadStr += (char)data[i];
-    
-    Payload incoming;
-    if (incoming.fromJson(payloadStr)) {
-        ledControl.changeState(incoming);
-        request->send(200, "application/json", "{\"status\":\"ok\"}");
-    } else {
-        request->send(400, "application/json", "{\"status\":\"error\"}");
-    }
 }
