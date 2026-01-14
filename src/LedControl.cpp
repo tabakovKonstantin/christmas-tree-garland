@@ -46,10 +46,9 @@ void LedControl::initLEDs()
     FastLED.setDither(false);
     FastLED.setBrightness(currentState.brightness);
     
-    // Apply initial state
     if (currentState.state == "ON") {
         isOn = true;
-        if (currentState.effect != "null") {
+        if (currentState.effect != "null" && currentState.effect.length() > 0) {
             setLEDEffect(currentState.effect);
         } else {
             setLEDColor((currentState.color.r << 16) | (currentState.color.g << 8) | currentState.color.b);
@@ -66,7 +65,15 @@ void LedControl::eventFlash()
 {
     if (eventStep >= eventTotalFlashes * 2) {
         if (!isOn) fill_solid(leds, NUM_LEDS, CRGB::Black);
-        else changeState(currentState); // Restore previous visuals
+        else {
+            // Restore visuals
+            if (currentState.effect != "null" && currentState.effect.length() > 0) {
+                 setLEDEffect(currentState.effect);
+            } else {
+                 uint32_t rgb = (currentState.color.r << 16) | (currentState.color.g << 8) | currentState.color.b;
+                 setLEDColor(rgb);
+            }
+        }
         FastLED.show();
         eventTicker.detach();
         return;
@@ -92,31 +99,44 @@ void LedControl::showError() { showEventNotification(CRGB::Red, 6, 600); }
 void LedControl::changeState(const Payload &payload)
 {
     Payload next = currentState;
-    bool hasBrightness = payload.brightness != -1;
-    bool hasColorRGB = (payload.color.r != -1 && payload.color.g != -1 && payload.color.b != -1);
-    bool hasEffect = (payload.effect != "null" && payload.effect.length() > 0);
-
-    if (hasBrightness) {
+    
+    // --- 1. PARSE & APPLY PARAMS ---
+    
+    // Brightness
+    if (payload.brightness != -1) {
         setLEDBrightness(payload.brightness);
         next.brightness = payload.brightness;
     }
 
-    if (hasColorRGB) {
-        uint32_t rgb = (payload.color.r << 16) | (payload.color.g << 8) | payload.color.b;
-        setLEDColor(rgb);
+    // Color (Implicitly stops effect if set)
+    bool colorChanged = (payload.color.r != -1);
+    if (colorChanged) {
         next.color = payload.color;
-        next.effect = "null";
-        effectManager.setEffect(nullptr);
+        // If color is set, we usually stop effect, BUT
+        // we wait to see if 'effect' field is also present.
+        // If effect is NOT present, we stop it.
+        // If effect IS present, it overrides color.
+        if (payload.effect.length() == 0) {
+             next.effect = "null"; 
+             effectManager.setEffect(nullptr);
+        }
     }
 
-    if (hasEffect) {
-        setLEDEffect(payload.effect);
-        next.effect = payload.effect;
-    } else if (payload.effect == "null") {
-        effectManager.setEffect(nullptr);
-        next.effect = "null";
+    // Effect
+    // payload.effect == "" -> No change
+    // payload.effect == "null" -> Stop
+    // payload.effect == "Name" -> Start
+    if (payload.effect.length() > 0) {
+        if (payload.effect == "null") {
+            effectManager.setEffect(nullptr);
+            next.effect = "null";
+        } else {
+            setLEDEffect(payload.effect);
+            next.effect = payload.effect;
+        }
     }
 
+    // Power State
     if (payload.state == "OFF") {
         FastLED.clear(true);
         isOn = false;
@@ -126,13 +146,54 @@ void LedControl::changeState(const Payload &payload)
         next.state = "ON";
     }
 
+    // --- 2. RE-APPLY VISUALS IF NEEDED ---
+    // If we are ON, make sure something is showing
+    if (isOn) {
+        // If we just turned ON, or if we are ON and just changed something
+        if (next.effect != "null" && next.effect.length() > 0) {
+            // Ensure effect is running (setEffect handles duplicates internally usually, 
+            // but EffectManager::setEffect re-creates it. 
+            // We only re-set if it changed OR if we were off.
+            // Simplified: If effect is active in 'next', just ensure it runs.
+            // Optimally: check if changed.
+            // For now, if we have an effect in 'next', we rely on the fact 
+            // that we called setLEDEffect above if it was in payload.
+            // If it wasn't in payload, it might be stopped if we were OFF.
+            // So if (wasOff) restart it.
+            // But we don't track 'wasOff' easily here without extra var.
+            // Let's just trust setLEDEffect was called if payload had it.
+            
+            // If payload DID NOT have effect, but next HAS effect, and we are ON...
+            // We might be just changing brightness on a running effect.
+            // In that case, do nothing (brightness applied above).
+        } else {
+            // Solid Color mode
+            // If we changed color, we called setLEDColor above.
+            // If we just changed brightness, we need to redraw solid color?
+            // FastLED.setBrightness handles scaling on show(), 
+            // but we need to re-push the color to array if it was cleared?
+            // No, FastLED array keeps values. But if we were OFF, it was cleared.
+            // So we should re-apply color.
+            uint32_t rgb = (next.color.r << 16) | (next.color.g << 8) | next.color.b;
+            fill_solid(leds, NUM_LEDS, CRGB(rgb));
+            FastLED.show();
+        }
+    }
+
     currentState = next;
-    // Debounced save could be added here, for now direct save
     StateStorage::saveState(currentState);
 }
 
-void LedControl::setLEDColor(uint32_t color) { fill_solid(leds, NUM_LEDS, CRGB(color)); FastLED.show(); }
-void LedControl::setLEDBrightness(int brightness) { FastLED.setBrightness(brightness); FastLED.show(); }
+void LedControl::setLEDColor(uint32_t color) { 
+    fill_solid(leds, NUM_LEDS, CRGB(color)); 
+    FastLED.show(); 
+}
+
+void LedControl::setLEDBrightness(int brightness) { 
+    FastLED.setBrightness(brightness); 
+    FastLED.show(); 
+}
+
 void LedControl::setLEDEffect(String effect) {
     Effect *eff = EffectFactory::createEffect(effect);
     effectManager.setEffect(eff);

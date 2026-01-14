@@ -1,12 +1,8 @@
 #include "WebControlManager.h"
 #include <ArduinoJson.h>
 
-WebControlManager::WebControlManager(LedControl& led) : ledControl(led) {}
-
-void WebControlManager::setup(AsyncWebServer& server) {
-    // 1. MAIN UI PAGE HANDLER
-    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
-        String html = R"rawliteral(
+// HTML Template stored in Flash to save RAM
+const char INDEX_HTML[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -25,7 +21,7 @@ void WebControlManager::setup(AsyncWebServer& server) {
             width: 80px; height: 80px; border-radius: 50%; border: none; outline: none; cursor: pointer;
             font-size: 24px; color: white; transition: all 0.3s ease;
             box-shadow: 0 0 15px rgba(0,0,0,0.5);
-            background: #444; display: flex; align-items: center; justify-content: center; margin: 0 auto;
+            display: flex; align-items: center; justify-content: center; margin: 0 auto;
         }
         .pwr-on { background: #2ecc71; box-shadow: 0 0 20px #2ecc71; }
         .pwr-off { background: #e74c3c; box-shadow: 0 0 20px #e74c3c; }
@@ -44,15 +40,24 @@ void WebControlManager::setup(AsyncWebServer& server) {
             background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23FFFFFF%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
             background-repeat: no-repeat; background-position: right 15px top 50%; background-size: 12px auto;
         }
+
+        /* Loader Spinner */
+        .loader {
+            display: none; position: fixed; top: 20px; right: 20px;
+            border: 4px solid rgba(255,255,255,0.3); border-radius: 50%; border-top: 4px solid #f4d35e;
+            width: 24px; height: 24px; animation: spin 1s linear infinite; z-index: 1000;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
+    <div id="loader" class="loader"></div>
     <canvas class="snow" id="snowCanvas"></canvas>
     <div class="container">
         <h1>🎄 Magic Garland</h1>
         
-        <div class="card">
-            <button id="pwrBtn" class="pwr-btn pwr-on" onclick="togglePower()">
+        <div class="card" style="text-align: center;">
+            <button id="pwrBtn" class="pwr-btn %BTN_CLASS%" onclick="togglePower()">
                 <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path><line x1="12" y1="2" x2="12" y2="12"></line></svg>
             </button>
         </div>
@@ -60,14 +65,14 @@ void WebControlManager::setup(AsyncWebServer& server) {
         <div class="card">
             <h3>Brightness</h3>
             <div class="slider-container">
-                <input type="range" id="bright" min="0" max="255" value="128" oninput="updateBriDisplay(this.value)" onchange="sendUpdate()">
-                <span class="percent" id="briText">50%</span>
+                <input type="range" id="bright" min="0" max="255" value="%BRIGHT%" oninput="updateBriDisplay(this.value)" onchange="sendUpdate('bri')">
+                <span class="percent" id="briText">%BRIGHT_PCT%%</span>
             </div>
         </div>
 
         <div class="card">
             <h3>Color</h3>
-            <input type="color" id="color" value="#ff0000" onchange="sendUpdate()">
+            <input type="color" id="color" value="#%HEX_COLOR%" onchange="sendUpdate('col')">
         </div>
 
         <div class="card">
@@ -84,20 +89,38 @@ void WebControlManager::setup(AsyncWebServer& server) {
     </div>
 
     <script>
-        let isPowerOn = true;
+        // Injected by Server
+        let isPowerOn = %IS_PWR_ON%;
+
+        function showLoader() { document.getElementById('loader').style.display = 'block'; }
+        function hideLoader() { document.getElementById('loader').style.display = 'none'; }
 
         function updateBriDisplay(val) {
             const pct = Math.round((val / 255) * 100);
             document.getElementById('briText').innerText = pct + "%";
         }
 
+        async function sendApi(data) {
+            showLoader();
+            try {
+                const res = await fetch('/api/set', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+                if (!res.ok) console.error("API Error");
+            } catch (e) {
+                console.error(e);
+            }
+            hideLoader();
+        }
+
         function togglePower() {
             isPowerOn = !isPowerOn;
             updatePowerBtn();
-            fetch('/api/set', {
-                method: 'POST',
-                body: JSON.stringify({ state: isPowerOn ? "ON" : "OFF" })
-            });
+            
+            // Explicitly send correct state
+            sendApi({ state: isPowerOn ? "ON" : "OFF" });
         }
 
         function updatePowerBtn() {
@@ -111,30 +134,35 @@ void WebControlManager::setup(AsyncWebServer& server) {
             }
         }
 
-        function sendUpdate() {
-            if (!isPowerOn) { isPowerOn = true; updatePowerBtn(); }
-            const b = document.getElementById('bright').value;
-            const c = document.getElementById('color').value;
-            const r = parseInt(c.substr(1,2), 16);
-            const g = parseInt(c.substr(3,2), 16);
-            const b_val = parseInt(c.substr(5,2), 16);
+        function ensurePowerOn() {
+            if (!isPowerOn) {
+                isPowerOn = true;
+                updatePowerBtn();
+            }
+        }
+
+        function sendUpdate(type) {
+            ensurePowerOn();
+            const b = parseInt(document.getElementById('bright').value);
             
-            fetch('/api/set', {
-                method: 'POST',
-                body: JSON.stringify({
-                    state: "ON",
-                    brightness: parseInt(b),
-                    color: { r: r, g: g, b: b_val }
-                })
-            });
+            let data = { state: "ON", brightness: b };
+
+            if (type === 'col') {
+                const c = document.getElementById('color').value;
+                const r = parseInt(c.substr(1,2), 16);
+                const g = parseInt(c.substr(3,2), 16);
+                const b_val = parseInt(c.substr(5,2), 16);
+                data.color = { r: r, g: g, b: b_val };
+                // Reset effect UI
+                document.getElementById('effect').value = 'null';
+            }
+            
+            sendApi(data);
         }
 
         function setEffect(name) {
-            if (!isPowerOn) { isPowerOn = true; updatePowerBtn(); }
-            fetch('/api/set', {
-                method: 'POST',
-                body: JSON.stringify({ state: "ON", effect: name })
-            });
+            ensurePowerOn();
+            sendApi({ state: "ON", effect: name });
         }
 
         const canvas = document.getElementById('snowCanvas');
@@ -166,23 +194,61 @@ void WebControlManager::setup(AsyncWebServer& server) {
     </script>
 </body>
 </html>
-        )rawliteral";
-        request->send(200, "text/html", html);
+)rawliteral";
+
+WebControlManager::WebControlManager(LedControl& led) : ledControl(led) {}
+
+void WebControlManager::setup(AsyncWebServer& server) {
+    // 1. MAIN UI PAGE HANDLER
+    server.on("/", HTTP_GET, [this](AsyncWebServerRequest *request) {
+        Serial.println("Serving Web UI...");
+        
+        // --- SYNCHRONIZATION ---
+        Payload st = this->ledControl.getCurrentState();
+        bool isOn = (st.state == "ON");
+        
+        // Default color if unset
+        int r = (st.color.r < 0) ? 255 : st.color.r;
+        int g = (st.color.g < 0) ? 0 : st.color.g;
+        int b = (st.color.b < 0) ? 0 : st.color.b;
+        int bright = (st.brightness < 0) ? 128 : st.brightness;
+
+        // Helper to format HEX color
+        char hexCol[7];
+        sprintf(hexCol, "%02x%02x%02x", r, g, b);
+
+        // Prepare HTML response
+        String response = FPSTR(INDEX_HTML);
+        
+        response.replace("%IS_PWR_ON%", isOn ? "true" : "false");
+        response.replace("%BTN_CLASS%", isOn ? "pwr-on" : "pwr-off");
+        response.replace("%BRIGHT%", String(bright));
+        response.replace("%BRIGHT_PCT%", String((int)(bright / 2.55)));
+        response.replace("%HEX_COLOR%", String(hexCol));
+
+        request->send(200, "text/html", response);
     });
 
     // 2. API ENDPOINT HANDLER
-    server.on("/api/set", HTTP_POST, [](AsyncWebServerRequest *request){}, NULL, 
+    server.on("/api/set", HTTP_POST, 
+        [](AsyncWebServerRequest *request) {
+            request->send(200, "application/json", "{\"status\":\"ok\"}");
+        },
+        NULL,
         [this](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
-            // Re-assemble the body
-            String payloadStr;
-            for (size_t i = 0; i < len; i++) payloadStr += (char)data[i];
+            static String jsonBuffer;
+            if (index == 0) jsonBuffer = "";
             
-            Payload incoming;
-            if (incoming.fromJson(payloadStr)) {
-                this->ledControl.changeState(incoming);
-                request->send(200, "application/json", "{\"status\":\"ok\"}");
-            } else {
-                request->send(400, "application/json", "{\"status\":\"error\"}");
+            for (size_t i = 0; i < len; i++) jsonBuffer += (char)data[i];
+
+            if (index + len == total) {
+                Serial.print("API Req: "); Serial.println(jsonBuffer);
+                Payload incoming;
+                if (incoming.fromJson(jsonBuffer)) {
+                    this->ledControl.changeState(incoming);
+                } else {
+                    Serial.println("JSON Parse Error");
+                }
             }
         }
     );
