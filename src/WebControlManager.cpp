@@ -10,7 +10,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Garland Control</title>
+    <title>Magic Lights</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎄</text></svg>">
     <style>
         body { background: #0a0e14; color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; margin: 0; overflow-x: hidden; }
@@ -75,7 +75,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     <canvas class="snow" id="snowCanvas"></canvas>
     
     <div class="container">
-        <h1>🎄 Magic Garland</h1>
+        <h1>🎄 Magic Lights</h1>
         
         <div class="card" style="text-align: center;">
             <button id="pwrBtn" class="pwr-btn pwr-off" onclick="togglePower()">
