@@ -46,6 +46,7 @@ void LedControl::initLEDs()
     FastLED.setDither(false);
     FastLED.setBrightness(currentState.brightness);
     
+    // Apply initial state
     if (currentState.state == "ON") {
         isOn = true;
         if (currentState.effect != "null" && currentState.effect.length() > 0) {
@@ -56,6 +57,8 @@ void LedControl::initLEDs()
     } else {
         FastLED.clear(true);
         isOn = false;
+        // Make sure no effect is running on boot if OFF
+        effectManager.setEffect(nullptr);
     }
     
     FastLED.show();
@@ -64,8 +67,10 @@ void LedControl::initLEDs()
 void LedControl::eventFlash()
 {
     if (eventStep >= eventTotalFlashes * 2) {
-        if (!isOn) fill_solid(leds, NUM_LEDS, CRGB::Black);
-        else {
+        if (!isOn) {
+            fill_solid(leds, NUM_LEDS, CRGB::Black);
+            effectManager.setEffect(nullptr); // Ensure stopped
+        } else {
             // Restore visuals
             if (currentState.effect != "null" && currentState.effect.length() > 0) {
                  setLEDEffect(currentState.effect);
@@ -78,6 +83,9 @@ void LedControl::eventFlash()
         eventTicker.detach();
         return;
     }
+    // Temporarily pause effect during flash? Ideally yes.
+    effectManager.setEffect(nullptr);
+    
     if (eventStep % 2 == 0) fill_solid(leds, NUM_LEDS, eventColor);
     else fill_solid(leds, NUM_LEDS, CRGB::Black);
     FastLED.show();
@@ -99,6 +107,7 @@ void LedControl::showError() { showEventNotification(CRGB::Red, 6, 600); }
 void LedControl::changeState(const Payload &payload)
 {
     Payload next = currentState;
+    bool wasOff = !isOn;
     
     // --- 1. PARSE & APPLY PARAMS ---
     
@@ -112,68 +121,57 @@ void LedControl::changeState(const Payload &payload)
     bool colorChanged = (payload.color.r != -1);
     if (colorChanged) {
         next.color = payload.color;
-        // If color is set, we usually stop effect, BUT
-        // we wait to see if 'effect' field is also present.
-        // If effect is NOT present, we stop it.
-        // If effect IS present, it overrides color.
+        // If color is set, we check if effect is explicitly kept
         if (payload.effect.length() == 0) {
              next.effect = "null"; 
-             effectManager.setEffect(nullptr);
+             // We stop effect later if ON
         }
     }
 
-    // Effect
-    // payload.effect == "" -> No change
-    // payload.effect == "null" -> Stop
-    // payload.effect == "Name" -> Start
+    // Effect Logic
+    bool effectChanged = false;
     if (payload.effect.length() > 0) {
         if (payload.effect == "null") {
-            effectManager.setEffect(nullptr);
             next.effect = "null";
         } else {
-            setLEDEffect(payload.effect);
             next.effect = payload.effect;
+            effectChanged = true;
         }
     }
 
-    // Power State
+    // Power State Logic
     if (payload.state == "OFF") {
-        FastLED.clear(true);
+        // TURN OFF
         isOn = false;
         next.state = "OFF";
+        
+        // CRITICAL FIX: Stop any running effect so it doesn't overwrite black
+        effectManager.setEffect(nullptr);
+        FastLED.clear(true);
+        FastLED.show();
+        
     } else if (payload.state == "ON") {
+        // TURN ON
         isOn = true;
         next.state = "ON";
     }
 
-    // --- 2. RE-APPLY VISUALS IF NEEDED ---
-    // If we are ON, make sure something is showing
+    // --- 2. RE-APPLY VISUALS IF ON ---
     if (isOn) {
-        // If we just turned ON, or if we are ON and just changed something
+        // Did we just turn on? Or did effect change?
+        bool needRestartEffect = (wasOff || effectChanged);
+        
         if (next.effect != "null" && next.effect.length() > 0) {
-            // Ensure effect is running (setEffect handles duplicates internally usually, 
-            // but EffectManager::setEffect re-creates it. 
-            // We only re-set if it changed OR if we were off.
-            // Simplified: If effect is active in 'next', just ensure it runs.
-            // Optimally: check if changed.
-            // For now, if we have an effect in 'next', we rely on the fact 
-            // that we called setLEDEffect above if it was in payload.
-            // If it wasn't in payload, it might be stopped if we were OFF.
-            // So if (wasOff) restart it.
-            // But we don't track 'wasOff' easily here without extra var.
-            // Let's just trust setLEDEffect was called if payload had it.
-            
-            // If payload DID NOT have effect, but next HAS effect, and we are ON...
-            // We might be just changing brightness on a running effect.
-            // In that case, do nothing (brightness applied above).
+            // Active Effect
+            if (needRestartEffect) {
+                setLEDEffect(next.effect);
+            }
+            // If just brightness changed, effect continues running fine.
         } else {
-            // Solid Color mode
-            // If we changed color, we called setLEDColor above.
-            // If we just changed brightness, we need to redraw solid color?
-            // FastLED.setBrightness handles scaling on show(), 
-            // but we need to re-push the color to array if it was cleared?
-            // No, FastLED array keeps values. But if we were OFF, it was cleared.
-            // So we should re-apply color.
+            // Solid Color
+            // Stop effect if it was running
+            effectManager.setEffect(nullptr);
+            
             uint32_t rgb = (next.color.r << 16) | (next.color.g << 8) | next.color.b;
             fill_solid(leds, NUM_LEDS, CRGB(rgb));
             FastLED.show();
@@ -185,6 +183,8 @@ void LedControl::changeState(const Payload &payload)
 }
 
 void LedControl::setLEDColor(uint32_t color) { 
+    // Stop any effect before setting solid color
+    effectManager.setEffect(nullptr);
     fill_solid(leds, NUM_LEDS, CRGB(color)); 
     FastLED.show(); 
 }
