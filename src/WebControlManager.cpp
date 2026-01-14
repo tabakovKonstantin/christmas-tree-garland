@@ -2,7 +2,7 @@
 #include <ArduinoJson.h>
 #include "ConfigManager.h"
 
-// HTML Template with Favicon added
+// HTML Template
 const char INDEX_HTML[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
 <html lang="en">
@@ -14,7 +14,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     <style>
         body { background: #0a0e14; color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; margin: 0; overflow-x: hidden; }
         .snow { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
-        .container { position: relative; z-index: 1; max-width: 500px; margin: 0 auto; padding: 20px; }
+        .container { position: relative; z-index: 1; max-width: 500px; margin: 0 auto; padding: 20px; transition: filter 0.3s ease; }
         .card { background: rgba(255,255,255,0.1); border-radius: 16px; margin-bottom: 20px; padding: 20px; backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 4px 30px rgba(0,0,0,0.5); }
         h1 { color: #f4d35e; text-shadow: 0 0 10px rgba(244,211,94,0.5); margin: 10px 0 30px; font-weight: 300; letter-spacing: 2px; }
         h3 { margin: 0 0 15px; font-weight: 400; color: #aaa; text-transform: uppercase; font-size: 0.9rem; letter-spacing: 1px; }
@@ -45,17 +45,33 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
         
         .action-link { display: block; margin-top: 30px; color: #888; text-decoration: none; font-size: 0.8rem; }
 
+        /* Smooth Overlay Loader */
+        .loader-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.4); 
+            display: flex; align-items: center; justify-content: center;
+            z-index: 9999;
+            opacity: 0; pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        .loader-overlay.active { opacity: 1; pointer-events: auto; }
+        
+        /* Blur effect on container when loading */
+        body.loading .container { filter: blur(4px); transform: scale(0.98); }
+
         .loader {
-            display: none; position: fixed; top: 20px; right: 20px;
-            border: 4px solid rgba(255,255,255,0.3); border-radius: 50%; border-top: 4px solid #f4d35e;
-            width: 24px; height: 24px; animation: spin 1s linear infinite; z-index: 1000;
+            border: 5px solid rgba(255,255,255,0.1); border-radius: 50%; border-top: 5px solid #f4d35e;
+            width: 50px; height: 50px; animation: spin 0.8s linear infinite;
+            box-shadow: 0 0 15px rgba(244, 211, 94, 0.4);
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
-    <div id="loader" class="loader"></div>
+    <div id="loader" class="loader-overlay"><div class="loader"></div></div>
+    
     <canvas class="snow" id="snowCanvas"></canvas>
+    
     <div class="container">
         <h1>🎄 Magic Garland</h1>
         
@@ -96,8 +112,14 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     <script>
         let isPowerOn = %IS_PWR_ON%;
 
-        function showLoader() { document.getElementById('loader').style.display = 'block'; }
-        function hideLoader() { document.getElementById('loader').style.display = 'none'; }
+        function showLoader() { 
+            document.getElementById('loader').classList.add('active');
+            document.body.classList.add('loading');
+        }
+        function hideLoader() { 
+            document.getElementById('loader').classList.remove('active');
+            document.body.classList.remove('loading');
+        }
 
         function updateBriDisplay(val) {
             const pct = Math.round((val / 255) * 100);
@@ -113,7 +135,8 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                     body: JSON.stringify(data)
                 });
             } catch (e) { console.error(e); }
-            hideLoader();
+            // Small delay to make interaction feel smoother
+            setTimeout(hideLoader, 150);
         }
 
         function togglePower() {
