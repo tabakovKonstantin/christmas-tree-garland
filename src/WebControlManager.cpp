@@ -1,7 +1,6 @@
 #include "WebControlManager.h"
 #include <ArduinoJson.h>
 
-// HTML Template stored in Flash to save RAM
 const char INDEX_HTML[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
 <html lang="en">
@@ -41,7 +40,6 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             background-repeat: no-repeat; background-position: right 15px top 50%; background-size: 12px auto;
         }
 
-        /* Loader Spinner */
         .loader {
             display: none; position: fixed; top: 20px; right: 20px;
             border: 4px solid rgba(255,255,255,0.3); border-radius: 50%; border-top: 4px solid #f4d35e;
@@ -89,7 +87,6 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     </div>
 
     <script>
-        // Injected by Server
         let isPowerOn = %IS_PWR_ON%;
 
         function showLoader() { document.getElementById('loader').style.display = 'block'; }
@@ -108,56 +105,52 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(data)
                 });
-                if (!res.ok) console.error("API Error");
-            } catch (e) {
-                console.error(e);
-            }
+            } catch (e) { console.error(e); }
             hideLoader();
         }
 
         function togglePower() {
             isPowerOn = !isPowerOn;
             updatePowerBtn();
-            
-            // Explicitly send correct state
             sendApi({ state: isPowerOn ? "ON" : "OFF" });
         }
 
         function updatePowerBtn() {
             const btn = document.getElementById('pwrBtn');
             if (isPowerOn) {
-                btn.classList.remove('pwr-off');
-                btn.classList.add('pwr-on');
+                btn.classList.remove('pwr-off'); btn.classList.add('pwr-on');
             } else {
-                btn.classList.remove('pwr-on');
-                btn.classList.add('pwr-off');
+                btn.classList.remove('pwr-on'); btn.classList.add('pwr-off');
             }
         }
 
         function ensurePowerOn() {
-            if (!isPowerOn) {
-                isPowerOn = true;
-                updatePowerBtn();
-            }
+            if (!isPowerOn) { isPowerOn = true; updatePowerBtn(); }
         }
 
         function sendUpdate(type) {
             ensurePowerOn();
-            const b = parseInt(document.getElementById('bright').value);
             
-            let data = { state: "ON", brightness: b };
-
-            if (type === 'col') {
+            if (type === 'bri') {
+                const b = parseInt(document.getElementById('bright').value);
+                // ONLY send brightness and state
+                sendApi({ state: "ON", brightness: b });
+            }
+            else if (type === 'col') {
                 const c = document.getElementById('color').value;
                 const r = parseInt(c.substr(1,2), 16);
                 const g = parseInt(c.substr(3,2), 16);
                 const b_val = parseInt(c.substr(5,2), 16);
-                data.color = { r: r, g: g, b: b_val };
-                // Reset effect UI
+                
                 document.getElementById('effect').value = 'null';
+                
+                // Color change explicitly stops effects
+                sendApi({ 
+                    state: "ON", 
+                    color: { r: r, g: g, b: b_val },
+                    effect: "null"
+                });
             }
-            
-            sendApi(data);
         }
 
         function setEffect(name) {
@@ -167,30 +160,27 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
 
         const canvas = document.getElementById('snowCanvas');
         const ctx = canvas.getContext('2d');
-        let width, height, flakes = [];
+        let w, h, flakes = [];
         function initSnow() {
-            width = canvas.width = window.innerWidth;
-            height = canvas.height = window.innerHeight;
-            flakes = [];
-            for(let i=0; i<80; i++) flakes.push({
-                x: Math.random()*width, y: Math.random()*height, r: Math.random()*2+1, d: Math.random()*1+0.5
-            });
+            w = window.innerWidth; h = window.innerHeight;
+            canvas.width = w; canvas.height = h;
+            flakes = Array(80).fill().map(() => ({
+                x: Math.random()*w, y: Math.random()*h, r: Math.random()*2+1, d: Math.random()+0.5
+            }));
         }
-        function drawSnow() {
-            ctx.clearRect(0,0,width,height);
+        function draw() {
+            ctx.clearRect(0,0,w,h);
             ctx.fillStyle = 'rgba(255,255,255,0.6)';
             ctx.beginPath();
             flakes.forEach(f => {
-                ctx.moveTo(f.x, f.y);
-                ctx.arc(f.x, f.y, f.r, 0, Math.PI*2);
-                f.y += f.d;
-                if(f.y > height) { f.y = -5; f.x = Math.random()*width; }
+                ctx.moveTo(f.x, f.y); ctx.arc(f.x, f.y, f.r, 0, Math.PI*2);
+                f.y += f.d; if(f.y > h) { f.y = -5; f.x = Math.random()*w; }
             });
             ctx.fill();
-            requestAnimationFrame(drawSnow);
+            requestAnimationFrame(draw);
         }
         window.onresize = initSnow;
-        initSnow(); drawSnow();
+        initSnow(); draw();
     </script>
 </body>
 </html>
@@ -199,27 +189,17 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
 WebControlManager::WebControlManager(LedControl& led) : ledControl(led) {}
 
 void WebControlManager::setup(AsyncWebServer& server) {
-    // 1. MAIN UI PAGE HANDLER
     server.on("/", HTTP_GET, [this](AsyncWebServerRequest *request) {
-        Serial.println("Serving Web UI...");
-        
-        // --- SYNCHRONIZATION ---
         Payload st = this->ledControl.getCurrentState();
         bool isOn = (st.state == "ON");
-        
-        // Default color if unset
         int r = (st.color.r < 0) ? 255 : st.color.r;
         int g = (st.color.g < 0) ? 0 : st.color.g;
         int b = (st.color.b < 0) ? 0 : st.color.b;
         int bright = (st.brightness < 0) ? 128 : st.brightness;
 
-        // Helper to format HEX color
-        char hexCol[7];
-        sprintf(hexCol, "%02x%02x%02x", r, g, b);
+        char hexCol[7]; sprintf(hexCol, "%02x%02x%02x", r, g, b);
 
-        // Prepare HTML response
         String response = FPSTR(INDEX_HTML);
-        
         response.replace("%IS_PWR_ON%", isOn ? "true" : "false");
         response.replace("%BTN_CLASS%", isOn ? "pwr-on" : "pwr-off");
         response.replace("%BRIGHT%", String(bright));
@@ -229,7 +209,6 @@ void WebControlManager::setup(AsyncWebServer& server) {
         request->send(200, "text/html", response);
     });
 
-    // 2. API ENDPOINT HANDLER
     server.on("/api/set", HTTP_POST, 
         [](AsyncWebServerRequest *request) {
             request->send(200, "application/json", "{\"status\":\"ok\"}");
@@ -238,16 +217,11 @@ void WebControlManager::setup(AsyncWebServer& server) {
         [this](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
             static String jsonBuffer;
             if (index == 0) jsonBuffer = "";
-            
             for (size_t i = 0; i < len; i++) jsonBuffer += (char)data[i];
-
             if (index + len == total) {
-                Serial.print("API Req: "); Serial.println(jsonBuffer);
                 Payload incoming;
                 if (incoming.fromJson(jsonBuffer)) {
                     this->ledControl.changeState(incoming);
-                } else {
-                    Serial.println("JSON Parse Error");
                 }
             }
         }

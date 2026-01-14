@@ -7,20 +7,17 @@ class Payload
 {
 public:
     int brightness;
-    String color_mode; // логически константное значение "rgb"
-    struct Color
-    {
-        int r, g, b, c, w;
-    } color;
-    String effect;
-    String state;
+    String color_mode; 
+    struct Color { int r, g, b, c, w; } color;
+    String effect; // "" = no change, "null" = stop, "Name" = start
+    String state;  // "" = no change, "ON", "OFF"
     int transition;
 
     Payload()
         : brightness(-1),
           color_mode("rgb"),
-          effect("null"),
-          state("OFF"),
+          effect(""), // Default to empty (no action)
+          state(""),  // Default to empty (no action)
           transition(0)
     {
         color.r = -1;
@@ -33,19 +30,16 @@ public:
     String toJson() const
     {
         JsonDocument doc;
-        doc["brightness"] = brightness;
-
-        // color_mode всегда константа "rgb", не зависит от входящих команд
+        if (brightness != -1) doc["brightness"] = brightness;
         doc["color_mode"] = "rgb";
-
-        doc["color"]["r"] = color.r;
-        doc["color"]["g"] = color.g;
-        doc["color"]["b"] = color.b;
-
-        doc["effect"] = effect;
-        doc["state"] = state;
-        doc["transition"] = transition;
-
+        if (color.r != -1) {
+            doc["color"]["r"] = color.r;
+            doc["color"]["g"] = color.g;
+            doc["color"]["b"] = color.b;
+        }
+        if (effect.length() > 0) doc["effect"] = effect;
+        if (state.length() > 0) doc["state"] = state;
+        
         String output;
         serializeJson(doc, output);
         return output;
@@ -55,28 +49,30 @@ public:
     {
         JsonDocument doc;
         DeserializationError error = deserializeJson(doc, json);
-        if (error)
-        {
-            Serial.println("Ошибка десериализации JSON");
+        if (error) {
+            Serial.println("JSON Error");
             return false;
         }
 
-        // Если поле не пришло — ставим -1 как "нет значения".
-        brightness = doc["brightness"].isNull() ? -1 : doc["brightness"];
+        if (!doc["brightness"].isNull()) brightness = doc["brightness"];
+        
+        if (!doc["color"]["r"].isNull()) {
+            color.r = doc["color"]["r"];
+            color.g = doc["color"]["g"];
+            color.b = doc["color"]["b"];
+        }
 
-        // color_mode и color_temp из входящего JSON полностью игнорируем,
-        // мы всегда работаем в режиме "rgb".
-        color_mode = "rgb";
+        if (!doc["effect"].isNull()) {
+            effect = doc["effect"].as<String>();
+        } else {
+            effect = ""; // Explicitly reset to "no change" if missing
+        }
 
-        color.r = doc["color"]["r"].isNull() ? -1 : doc["color"]["r"];
-        color.g = doc["color"]["g"].isNull() ? -1 : doc["color"]["g"];
-        color.b = doc["color"]["b"].isNull() ? -1 : doc["color"]["b"];
-        color.c = -1;
-        color.w = -1;
-
-        effect = doc["effect"].as<String>();
-        state = doc["state"].as<String>();
-        transition = doc["transition"];
+        if (!doc["state"].isNull()) {
+            state = doc["state"].as<String>();
+        } else {
+            state = "";
+        }
 
         return true;
     }
