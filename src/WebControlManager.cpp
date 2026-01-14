@@ -44,6 +44,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
         }
         
         .action-link { display: block; margin-top: 30px; color: #888; text-decoration: none; font-size: 0.8rem; }
+        .footer { font-size: 0.9rem; color: #888; margin-top: 20px; text-align: center; }
 
         /* Smooth Overlay Loader */
         .loader-overlay {
@@ -107,6 +108,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
         </div>
         
         <a href="/reset_conf" class="action-link" onclick="return confirm('Reset WiFi settings?');">Reset Network Settings</a>
+        <p class='footer'>Made with ❤️ for Christmas</p>
     </div>
 
     <script>
