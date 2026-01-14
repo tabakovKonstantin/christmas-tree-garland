@@ -14,13 +14,12 @@ public:
         bool result = LittleFS.begin();
         if (!result)
         {
-            Serial.println("Ошибка инициализации файловой системы");
+            Serial.println("[FS] Error: LittleFS mount failed!");
             ledControl.showError();
         }
         else
         {
-            Serial.println("Файловая система инициализирована успешно");
-            ledControl.showSuccess();
+            Serial.println("[FS] Mounted successfully.");
         }
         return result;
     }
@@ -30,42 +29,47 @@ public:
         File file = LittleFS.open(filename, "w");
         if (!file)
         {
-            Serial.println();
-            Serial.print("Ошибка открытия файла для записи: ");
+            Serial.print("[FS] Error opening file for write: ");
             Serial.println(filename);
             ledControl.showError();
             return false;
         }
         file.print(data);
         file.close();
-        Serial.println();
-        Serial.print("Записано в файл: ");
+        
+        Serial.print("[FS] Saved to ");
         Serial.print(filename);
-        Serial.print(" данные: ");
-        Serial.println(data);
+        Serial.print(" (");
+        Serial.print(data.length());
+        Serial.println(" bytes)");
+        
         ledControl.showSuccess();
         return true;
     }
 
     static String loadFromFile(const char *filename)
     {
+        if (!LittleFS.exists(filename)) {
+            // It's not an error, just first run or reset state
+            Serial.print("[FS] File not found: ");
+            Serial.println(filename);
+            return "";
+        }
+
         File file = LittleFS.open(filename, "r");
         if (!file)
         {
-            Serial.println();
-            Serial.print("Ошибка открытия файла для чтения: ");
+            Serial.print("[FS] Error opening file for read: ");
             Serial.println(filename);
             ledControl.showError();
             return "";
         }
+        
         String data = file.readString();
         file.close();
-        Serial.println();
-        Serial.print("Прочтено из файла: ");
-        Serial.print(filename);
-        Serial.print(" данные: ");
-        Serial.println(data);
-        ledControl.showSuccess();
+        
+        Serial.print("[FS] Loaded from ");
+        Serial.println(filename);
         return data;
     }
 
@@ -73,21 +77,10 @@ public:
     {
         if (LittleFS.exists(filename))
         {
-            if (LittleFS.remove(filename))
-            {
-                Serial.println("File removed successfully.");
-                ledControl.showSuccess();
-            }
-            else
-            {
-                Serial.println("Failed to remove file.");
-                ledControl.showError();
-            }
-            return;
+            LittleFS.remove(filename);
+            Serial.print("[FS] Removed: ");
+            Serial.println(filename);
         }
-        Serial.println("File does not exist.");
-        ledControl.showError();
-        return;
     }
 };
 

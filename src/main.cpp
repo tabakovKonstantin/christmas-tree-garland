@@ -15,7 +15,6 @@ LedControl ledControl(effectManager);
 MqttManager mqttManager(ledControl);
 WebControlManager webControl(ledControl);
 
-// Reference globals
 extern AsyncWebServer server; 
 extern Config config;
 
@@ -24,59 +23,51 @@ void setup()
   Serial.begin(115200);
   Serial.println("\n\n--- BOOTING ---");
 
-  if (!FileManager::begin()) return;
+  if (!FileManager::begin()) {
+      Serial.println("FS Error, halting.");
+      return;
+  }
 
-  // --- DOUBLE RESET PROTECTION ---
-  // Если файл флага существует при загрузке -> значит был сброс
+  // --- STANDARD DOUBLE RESET DETECTOR ---
   if (LittleFS.exists(RESET_FLAG_FILE)) {
-    Serial.println("!!! Double Reset Detected: Erasing Config !!!");
+    Serial.println("\n!!! DOUBLE RESET DETECTED !!!");
     ledControl.showError();
     ConfigManager::eraseConfig();
     LittleFS.remove(RESET_FLAG_FILE);
     delay(1000);
     ESP.restart();
   } else {
-    // Создаем флаг. Если в течение 3 сек нажать RESET, файл останется
+    // Create flag
     File f = LittleFS.open(RESET_FLAG_FILE, "w");
     if (f) f.close();
     
-    Serial.println("Press RESET now to clear config...");
-    delay(3000); // Окно 3 секунды для сброса настроек
+    // Simple 3s delay window. If reset happens here, file remains.
+    // If not, we remove it.
+    delay(3000); 
     
-    // Если пережили задержку, удаляем флаг
     LittleFS.remove(RESET_FLAG_FILE);
-    Serial.println("Booting normally.");
   }
   // --------------------------------
 
   ledControl.initLEDs();
-  
-  // Пытаемся подключиться. Если конфига нет -> запускается AP (Точка доступа)
   initWiFi(); 
 
-  // Если подключились к роутеру (STA) или работаем как AP+STA
+  // Services
   if (WiFi.status() == WL_CONNECTED || WiFi.getMode() == WIFI_AP) {
     ConfigManager::loadConfig(config);
     
-    // mDNS (доступ по http://garland-XXXX.local)
     String dnsName = "garland-" + String(ESP.getChipId(), HEX);
     if (MDNS.begin(dnsName.c_str())) {
-        Serial.printf("mDNS started: http://%s.local\n", dnsName.c_str());
+        Serial.printf("[mDNS] Started: http://%s.local\n", dnsName.c_str());
         MDNS.addService("http", "tcp", 80);
     }
 
     OtaManager::setup();
     
-    // НАСТРОЙКА ВЕБ-ИНТЕРФЕЙСА
     webControl.setup(server);
-    
-    // ВАЖНО: Запускаем сервер. 
-    // В режиме AP он уже запущен в initWiFi, но повторный вызов безопасен.
-    // В режиме STA (подключено к роутеру) это критически важно!
     server.begin(); 
-    Serial.println("Web Server Started");
+    Serial.println("[HTTP] Server Started");
     
-    // Запуск MQTT только если есть интернет и он включен
     if (WiFi.status() == WL_CONNECTED && config.mqttEnabled) {
       mqttManager.init();
     }

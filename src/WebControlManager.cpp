@@ -1,5 +1,6 @@
 #include "WebControlManager.h"
 #include <ArduinoJson.h>
+#include "ConfigManager.h"
 
 const char INDEX_HTML[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
@@ -39,6 +40,8 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23FFFFFF%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
             background-repeat: no-repeat; background-position: right 15px top 50%; background-size: 12px auto;
         }
+        
+        .action-link { display: block; margin-top: 30px; color: #888; text-decoration: none; font-size: 0.8rem; }
 
         .loader {
             display: none; position: fixed; top: 20px; right: 20px;
@@ -84,6 +87,8 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 <option value="Halloween Flame">🔥 Fire / Flame</option>
             </select>
         </div>
+        
+        <a href="/reset_conf" class="action-link" onclick="return confirm('Reset WiFi settings?');">Reset Network Settings</a>
     </div>
 
     <script>
@@ -133,7 +138,6 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             
             if (type === 'bri') {
                 const b = parseInt(document.getElementById('bright').value);
-                // ONLY send brightness and state
                 sendApi({ state: "ON", brightness: b });
             }
             else if (type === 'col') {
@@ -144,7 +148,6 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 
                 document.getElementById('effect').value = 'null';
                 
-                // Color change explicitly stops effects
                 sendApi({ 
                     state: "ON", 
                     color: { r: r, g: g, b: b_val },
@@ -219,6 +222,7 @@ void WebControlManager::setup(AsyncWebServer& server) {
             if (index == 0) jsonBuffer = "";
             for (size_t i = 0; i < len; i++) jsonBuffer += (char)data[i];
             if (index + len == total) {
+                Serial.print("API: "); Serial.println(jsonBuffer);
                 Payload incoming;
                 if (incoming.fromJson(jsonBuffer)) {
                     this->ledControl.changeState(incoming);
@@ -226,4 +230,12 @@ void WebControlManager::setup(AsyncWebServer& server) {
             }
         }
     );
+    
+    // Add reset endpoint
+    server.on("/reset_conf", HTTP_GET, [](AsyncWebServerRequest *request){
+        ConfigManager::eraseConfig();
+        request->send(200, "text/html", "<h1>Resetting... connect to AP</h1><script>setTimeout(()=>{window.location.href='http://192.168.4.1'},5000)</script>");
+        delay(1000);
+        ESP.restart();
+    });
 }
