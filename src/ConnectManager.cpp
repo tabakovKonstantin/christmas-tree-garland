@@ -75,6 +75,7 @@ void initWiFi() {
 
     WiFi.mode(WIFI_AP); 
     String apName = "Garland-" + String(ESP.getChipId(), HEX);
+    WiFi.hostname(apName);
     WiFi.softAP(apName.c_str());
     
     Serial.print("AP IP: "); Serial.println(WiFi.softAPIP());
@@ -170,20 +171,43 @@ button:active { transform: scale(0.98); }
     </select>
     
     <label>🔑 Wi-Fi Password:</label>
-    <input type='password' name='pass' placeholder='Enter password'>
+    <input type='password' name='pass' placeholder='Enter password' value=')rawliteral";
+    html += htmlEscape(config.wifiPassword);
+    html += R"rawliteral('>
 
     <label>🎮 Control Mode:</label>
     <select name='mqtt_enabled' id='mqtt_toggle' onchange='toggleMqtt()'>
-      <option value='false' selected>📱 Standalone (Web Interface)</option>
-      <option value='true'>🏠 Home Assistant (MQTT)</option>
+      <option value='false' )rawliteral";
+      html += (!config.mqttEnabled ? "selected" : "");
+      html += R"rawliteral(>📱 Standalone (Web Interface)</option>
+      <option value='true' )rawliteral";
+      html += (config.mqttEnabled ? "selected" : "");
+      html += R"rawliteral(>🏠 Home Assistant (MQTT)</option>
     </select>
 
     <div id='mqtt_fields' class='hidden' style='background: #fff3e0; padding: 10px; border-radius: 8px; margin-top:10px; border:1px solid #ffe0b2;'>
-      <label>Broker Address:</label>
-      <input name='mqtt_url' placeholder='192.168.1.x' value='116.203.170.149'>
       <div style="display:flex; gap:10px">
-        <div style="flex:1"><label>User:</label><input name='mqtt_user' value='xmaslights'></div>
-        <div style="flex:1"><label>Password:</label><input name='mqtt_pass' type='password'></div>
+        <div style="flex:3">
+            <label>Broker Address:</label>
+            <input name='mqtt_url' placeholder='192.168.1.x' value=')rawliteral";
+            html += htmlEscape(config.mqttServer);
+            html += R"rawliteral('>
+        </div>
+        <div style="flex:1">
+            <label>Port:</label>
+            <input name='mqtt_port' placeholder='1883' value=')rawliteral";
+            html += String(config.mqttPort);
+            html += R"rawliteral('>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:10px">
+        <div style="flex:1"><label>User:</label><input name='mqtt_user' value=')rawliteral";
+        html += htmlEscape(config.mqttUsername);
+        html += R"rawliteral('></div>
+        <div style="flex:1"><label>Password:</label><input name='mqtt_pass' type='password' value=')rawliteral";
+        html += htmlEscape(config.mqttPassword);
+        html += R"rawliteral('></div>
       </div>
     </div>
 
@@ -191,9 +215,9 @@ button:active { transform: scale(0.98); }
     <div id="adv_fields" class="hidden advanced-section">
         <label>🎨 LED Color Order:</label>
         <select name='color_order'>
-            <option value='RGB'>RGB</option>
-            <option value='GRB'>GRB</option>
-            <option value='BRG'>BRG</option>
+            <option value='RGB' )rawliteral"; html += (config.colorOrder == "RGB" ? "selected" : ""); html += R"rawliteral(>RGB</option>
+            <option value='GRB' )rawliteral"; html += (config.colorOrder == "GRB" ? "selected" : ""); html += R"rawliteral(>GRB</option>
+            <option value='BRG' )rawliteral"; html += (config.colorOrder == "BRG" ? "selected" : ""); html += R"rawliteral(>BRG</option>
         </select>
     </div>
 
@@ -238,6 +262,10 @@ initSnow(); draw();
         config.wifiPassword = request->arg("pass");
         config.mqttEnabled = (request->arg("mqtt_enabled") == "true");
         config.mqttServer = request->arg("mqtt_url");
+        
+        int port = request->arg("mqtt_port").toInt();
+        config.mqttPort = (port > 0) ? port : 1883;
+
         config.mqttUsername = request->arg("mqtt_user");
         config.mqttPassword = request->arg("mqtt_pass");
         config.colorOrder = request->arg("color_order");
@@ -246,6 +274,10 @@ initSnow(); draw();
         request->send(200, "text/html", "<h1 style='text-align:center; font-family:sans-serif; margin-top:50px;'>✅ Settings Saved!<br>Rebooting...</h1>");
         delay(1000);
         ESP.restart();
+    });
+
+    server.onNotFound([](AsyncWebServerRequest *request) {
+        request->redirect("http://" + WiFi.softAPIP().toString() + "/");
     });
 
     server.begin(); 

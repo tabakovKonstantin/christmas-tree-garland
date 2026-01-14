@@ -5,9 +5,9 @@
 
 class Config {
 public:
-    bool mqttEnabled = true; // New field
+    bool mqttEnabled = true; 
     String mqttServer;
-    int mqttPort;
+    int mqttPort = 1883; // Default to standard MQTT port
     String mqttUsername;
     String mqttPassword;
     String wifiSSID;
@@ -41,6 +41,8 @@ public:
         mqttEnabled = jsonDoc["mqttEnabled"] | true;
         mqttServer = jsonDoc["mqttServer"].as<String>();
         mqttPort = jsonDoc["mqttPort"].as<int>();
+        if (mqttPort <= 0) mqttPort = 1883; // Fallback
+
         mqttUsername = jsonDoc["mqttUsername"].as<String>();
         mqttPassword = jsonDoc["mqttPassword"].as<String>();
         wifiSSID = jsonDoc["wifiSSID"].as<String>();
