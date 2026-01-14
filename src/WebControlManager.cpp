@@ -2,6 +2,7 @@
 #include <ArduinoJson.h>
 #include "ConfigManager.h"
 
+// HTML Template with Favicon added
 const char INDEX_HTML[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
 <html lang="en">
@@ -9,6 +10,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Garland Control</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎄</text></svg>">
     <style>
         body { background: #0a0e14; color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; margin: 0; overflow-x: hidden; }
         .snow { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
@@ -231,7 +233,6 @@ void WebControlManager::setup(AsyncWebServer& server) {
         }
     );
     
-    // Add reset endpoint
     server.on("/reset_conf", HTTP_GET, [](AsyncWebServerRequest *request){
         ConfigManager::eraseConfig();
         request->send(200, "text/html", "<h1>Resetting... connect to AP</h1><script>setTimeout(()=>{window.location.href='http://192.168.4.1'},5000)</script>");
