@@ -2,7 +2,8 @@
 #include <ArduinoJson.h>
 #include "ConfigManager.h"
 
-// HTML Template
+// HTML Template stored in Flash
+// NOTE: All CSS percentages '%' are escaped as '%%' for the template processor
 const char INDEX_HTML[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
 <html lang="en">
@@ -10,17 +11,17 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Garland Control</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎄</text></svg>">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎄</text></svg>">
     <style>
         body { background: #0a0e14; color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; margin: 0; overflow-x: hidden; }
-        .snow { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
+        .snow { position: fixed; top: 0; left: 0; width: 100%%; height: 100%%; pointer-events: none; z-index: 0; }
         .container { position: relative; z-index: 1; max-width: 500px; margin: 0 auto; padding: 20px; transition: filter 0.3s ease; }
         .card { background: rgba(255,255,255,0.1); border-radius: 16px; margin-bottom: 20px; padding: 20px; backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 4px 30px rgba(0,0,0,0.5); }
         h1 { color: #f4d35e; text-shadow: 0 0 10px rgba(244,211,94,0.5); margin: 10px 0 30px; font-weight: 300; letter-spacing: 2px; }
         h3 { margin: 0 0 15px; font-weight: 400; color: #aaa; text-transform: uppercase; font-size: 0.9rem; letter-spacing: 1px; }
         
         .pwr-btn {
-            width: 80px; height: 80px; border-radius: 50%; border: none; outline: none; cursor: pointer;
+            width: 80px; height: 80px; border-radius: 50%%; border: none; outline: none; cursor: pointer;
             font-size: 24px; color: white; transition: all 0.3s ease;
             box-shadow: 0 0 15px rgba(0,0,0,0.5);
             display: flex; align-items: center; justify-content: center; margin: 0 auto;
@@ -30,26 +31,27 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
 
         .slider-container { display: flex; align-items: center; gap: 15px; }
         input[type=range] { flex-grow: 1; height: 6px; border-radius: 5px; background: #555; outline: none; -webkit-appearance: none; }
-        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%; background: #f4d35e; cursor: pointer; box-shadow: 0 0 10px #f4d35e; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%%; background: #f4d35e; cursor: pointer; box-shadow: 0 0 10px #f4d35e; }
         .percent { font-size: 1.2rem; font-weight: bold; width: 50px; text-align: right; }
 
-        input[type=color] { width: 100%; height: 50px; border: none; background: none; cursor: pointer; padding: 0; }
+        input[type=color] { width: 100%%; height: 50px; border: none; background: none; cursor: pointer; padding: 0; }
 
         select {
-            width: 100%; padding: 15px; border-radius: 10px; border: 1px solid #555;
+            width: 100%%; padding: 15px; border-radius: 10px; border: 1px solid #555;
             background: #222; color: white; font-size: 1.1rem; outline: none; cursor: pointer;
             appearance: none; -webkit-appearance: none;
             background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23FFFFFF%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
-            background-repeat: no-repeat; background-position: right 15px top 50%; background-size: 12px auto;
+            background-repeat: no-repeat; background-position: right 15px top 50%%; background-size: 12px auto;
         }
         
         .action-link { display: block; margin-top: 30px; color: #888; text-decoration: none; font-size: 0.8rem; }
         .footer { font-size: 0.9rem; color: #888; margin-top: 20px; text-align: center; }
 
-        /* Smooth Overlay Loader */
+        /* Loader Overlay */
         .loader-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            position: fixed; top: 0; left: 0; width: 100%%; height: 100%%;
             background: rgba(0, 0, 0, 0.4); 
+            backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
             display: flex; align-items: center; justify-content: center;
             z-index: 9999;
             opacity: 0; pointer-events: none;
@@ -57,15 +59,14 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
         }
         .loader-overlay.active { opacity: 1; pointer-events: auto; }
         
-        /* Blur effect on container when loading */
-        body.loading .container { filter: blur(4px); transform: scale(0.98); }
+        body.loading .container { transform: scale(0.98); }
 
         .loader {
-            border: 5px solid rgba(255,255,255,0.1); border-radius: 50%; border-top: 5px solid #f4d35e;
+            border: 5px solid rgba(255,255,255,0.1); border-radius: 50%%; border-top: 5px solid #f4d35e;
             width: 50px; height: 50px; animation: spin 0.8s linear infinite;
             box-shadow: 0 0 15px rgba(244, 211, 94, 0.4);
         }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes spin { 0%% { transform: rotate(0deg); } 100%% { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
@@ -77,7 +78,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
         <h1>🎄 Magic Garland</h1>
         
         <div class="card" style="text-align: center;">
-            <button id="pwrBtn" class="pwr-btn %BTN_CLASS%" onclick="togglePower()">
+            <button id="pwrBtn" class="pwr-btn pwr-off" onclick="togglePower()">
                 <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path><line x1="12" y1="2" x2="12" y2="12"></line></svg>
             </button>
         </div>
@@ -85,14 +86,14 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
         <div class="card">
             <h3>Brightness</h3>
             <div class="slider-container">
-                <input type="range" id="bright" min="0" max="255" value="%BRIGHT%" oninput="updateBriDisplay(this.value)" onchange="sendUpdate('bri')">
-                <span class="percent" id="briText">%BRIGHT_PCT%%</span>
+                <input type="range" id="bright" min="0" max="255" value="128" oninput="updateBriDisplay(this.value)" onchange="sendUpdate('bri')">
+                <span class="percent" id="briText">50%%</span>
             </div>
         </div>
 
         <div class="card">
             <h3>Color</h3>
-            <input type="color" id="color" value="#%HEX_COLOR%" onchange="sendUpdate('col')">
+            <input type="color" id="color" value="#000000" onchange="sendUpdate('col')">
         </div>
 
         <div class="card">
@@ -112,7 +113,30 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     </div>
 
     <script>
-        let isPowerOn = %IS_PWR_ON%;
+        // Server will inject JSON here
+        const initState = %STATE_JSON%;
+    </script>
+
+    <script>
+        let isPowerOn = false;
+
+        function applyState(st) {
+            isPowerOn = (st.isOn === true);
+            updatePowerBtn();
+
+            if(st.bri !== undefined) {
+                document.getElementById('bright').value = st.bri;
+                updateBriDisplay(st.bri);
+            }
+            if(st.hex) {
+                document.getElementById('color').value = "#" + st.hex;
+            }
+            // Optional: You could allow selecting effect based on state, but default <select> is tricky
+        }
+
+        if (typeof initState !== 'undefined' && initState.isOn !== undefined) {
+            applyState(initState);
+        }
 
         function showLoader() { 
             document.getElementById('loader').classList.add('active');
@@ -137,8 +161,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                     body: JSON.stringify(data)
                 });
             } catch (e) { console.error(e); }
-            // Small delay to make interaction feel smoother
-            setTimeout(hideLoader, 150);
+            setTimeout(hideLoader, 200);
         }
 
         function togglePower() {
@@ -174,7 +197,6 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 const b_val = parseInt(c.substr(5,2), 16);
                 
                 document.getElementById('effect').value = 'null';
-                
                 sendApi({ 
                     state: "ON", 
                     color: { r: r, g: g, b: b_val },
@@ -218,25 +240,37 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
 
 WebControlManager::WebControlManager(LedControl& led) : ledControl(led) {}
 
-void WebControlManager::setup(AsyncWebServer& server) {
-    server.on("/", HTTP_GET, [this](AsyncWebServerRequest *request) {
-        Payload st = this->ledControl.getCurrentState();
+// Processor to inject JSON state into HTML stream
+String processor(const String& var, LedControl& led) {
+    if (var == "STATE_JSON") {
+        Payload st = led.getCurrentState();
         bool isOn = (st.state == "ON");
         int r = (st.color.r < 0) ? 255 : st.color.r;
         int g = (st.color.g < 0) ? 0 : st.color.g;
         int b = (st.color.b < 0) ? 0 : st.color.b;
         int bright = (st.brightness < 0) ? 128 : st.brightness;
+        
+        char hexCol[7]; 
+        sprintf(hexCol, "%02x%02x%02x", r, g, b);
 
-        char hexCol[7]; sprintf(hexCol, "%02x%02x%02x", r, g, b);
+        String jsonState = "{";
+        jsonState += "\"isOn\":"; jsonState += (isOn ? "true" : "false");
+        jsonState += ",\"bri\":"; jsonState += bright;
+        jsonState += ",\"hex\":\""; jsonState += hexCol;
+        jsonState += "\"}";
+        return jsonState;
+    }
+    return String();
+}
 
-        String response = FPSTR(INDEX_HTML);
-        response.replace("%IS_PWR_ON%", isOn ? "true" : "false");
-        response.replace("%BTN_CLASS%", isOn ? "pwr-on" : "pwr-off");
-        response.replace("%BRIGHT%", String(bright));
-        response.replace("%BRIGHT_PCT%", String((int)(bright / 2.55)));
-        response.replace("%HEX_COLOR%", String(hexCol));
-
-        request->send(200, "text/html", response);
+void WebControlManager::setup(AsyncWebServer& server) {
+    // Use send_P with processor for memory efficiency and reliability
+    server.on("/", HTTP_GET, [this](AsyncWebServerRequest *request) {
+        request->send_P(200, "text/html", INDEX_HTML, 
+            [this](const String& var) { 
+                return processor(var, this->ledControl); 
+            }
+        );
     });
 
     server.on("/api/set", HTTP_POST, 
