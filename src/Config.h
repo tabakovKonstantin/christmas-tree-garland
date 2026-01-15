@@ -5,7 +5,11 @@
 
 class Config {
 public:
-    bool mqttEnabled = false; // Default: Standalone Mode
+    // 0: Standalone (Web)
+    // 1: MQTT Only
+    // 2: Both
+    int workMode = 0; 
+    
     String mqttServer;
     int mqttPort = 1883; 
     String mqttUsername;
@@ -16,7 +20,7 @@ public:
 
     String toJson() const {
         JsonDocument jsonDoc; 
-        jsonDoc["mqttEnabled"] = mqttEnabled;
+        jsonDoc["workMode"] = workMode;
         jsonDoc["mqttServer"] = mqttServer;
         jsonDoc["mqttPort"] = mqttPort;
         jsonDoc["mqttUsername"] = mqttUsername;
@@ -38,7 +42,17 @@ public:
             return false;
         }
 
-        mqttEnabled = jsonDoc["mqttEnabled"] | false;
+        // Backward compatibility: check if "mqttEnabled" exists if "workMode" doesn't
+        if (jsonDoc.containsKey("workMode")) {
+            workMode = jsonDoc["workMode"].as<int>();
+        } else if (jsonDoc.containsKey("mqttEnabled")) {
+            // Migration: if enabled=true -> Both(2), else Standalone(0)
+            bool en = jsonDoc["mqttEnabled"];
+            workMode = en ? 2 : 0;
+        } else {
+            workMode = 0;
+        }
+
         mqttServer = jsonDoc["mqttServer"].as<String>();
         mqttPort = jsonDoc["mqttPort"].as<int>();
         if (mqttPort <= 0) mqttPort = 1883; 

@@ -7,7 +7,7 @@
 class WebControlManager {
 public:
     WebControlManager(LedControl& ledControl);
-    void setup(AsyncWebServer& server);
+    void setup(AsyncWebServer& server, bool fullUI = true);
 
 private:
     LedControl& ledControl;

@@ -64,11 +64,22 @@ void setup()
 
     OtaManager::setup();
     
-    webControl.setup(server);
+    // Determine which services to start based on workMode
+    // 0 = Web Only
+    // 1 = MQTT Only
+    // 2 = Both
+    
+    bool enableWebControl = (config.workMode == 0 || config.workMode == 2);
+    bool enableMqtt = (config.workMode == 1 || config.workMode == 2);
+
+    // If Mode 1 (MQTT Only), setup web server with restricted UI (just reset link)
+    // so user can still factory reset via browser if needed.
+    webControl.setup(server, enableWebControl);
+    
     server.begin(); 
     Serial.println("[HTTP] Server Started");
     
-    if (WiFi.status() == WL_CONNECTED && config.mqttEnabled) {
+    if (WiFi.status() == WL_CONNECTED && enableMqtt) {
       mqttManager.init();
     }
   }

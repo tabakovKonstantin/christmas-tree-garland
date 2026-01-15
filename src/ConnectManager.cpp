@@ -146,14 +146,15 @@ button:active { transform: scale(0.98); }
 .pwd-wrap { position: relative; }
 .pwd-toggle { 
     position: absolute; right: 12px; top: 50%; transform: translateY(-50%); 
-    cursor: pointer; font-size: 1.2rem; user-select: none; opacity: 0.6; 
+    cursor: pointer; opacity: 0.5; color: #333; display: flex;
 }
 .pwd-toggle:hover { opacity: 1; }
 </style>
 <script>
  function toggleMqtt() {
-  const val = document.getElementById('mqtt_toggle').value;
-  document.getElementById('mqtt_fields').style.display = (val === 'true') ? 'block' : 'none';
+  const mode = document.getElementById('work_mode').value;
+  // Mode 1 (MQTT Only) or 2 (Both) require MQTT fields
+  document.getElementById('mqtt_fields').style.display = (mode === '1' || mode === '2') ? 'block' : 'none';
  }
  function toggleAdvanced() {
      const el = document.getElementById('adv_fields');
@@ -164,11 +165,10 @@ button:active { transform: scale(0.98); }
     if (x.type === "password") { x.type = "text"; } else { x.type = "password"; }
  }
  function validateForm(e) {
-    var enabled = document.getElementById('mqtt_toggle').value === 'true';
-    if (!enabled) return true;
+    const mode = document.getElementById('work_mode').value;
+    if (mode === '0') return true; // Standalone, no IP check needed
     
     var ip = document.getElementsByName('mqtt_url')[0].value;
-    // Strict IP validation regex
     var ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
     
     if (!ipRegex.test(ip)) {
@@ -206,17 +206,22 @@ button:active { transform: scale(0.98); }
         <input type='password' id='pass' name='pass' placeholder='Enter password' value=')rawliteral";
         html += htmlEscape(config.wifiPassword);
         html += R"rawliteral('>
-        <span class="pwd-toggle" onclick="toggleVis('pass')">👁</span>
+        <span class="pwd-toggle" onclick="toggleVis('pass')">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+        </span>
     </div>
 
     <label>🎮 Control Mode:</label>
-    <select name='mqtt_enabled' id='mqtt_toggle' onchange='toggleMqtt()'>
-      <option value='false' )rawliteral";
-      html += (!config.mqttEnabled ? "selected" : "");
+    <select name='work_mode' id='work_mode' onchange='toggleMqtt()'>
+      <option value='0' )rawliteral";
+      html += (config.workMode == 0 ? "selected" : "");
       html += R"rawliteral(>📱 Standalone (Web Interface)</option>
-      <option value='true' )rawliteral";
-      html += (config.mqttEnabled ? "selected" : "");
-      html += R"rawliteral(>🏠 Home Assistant (MQTT)</option>
+      <option value='1' )rawliteral";
+      html += (config.workMode == 1 ? "selected" : "");
+      html += R"rawliteral(>🤖 MQTT Only</option>
+      <option value='2' )rawliteral";
+      html += (config.workMode == 2 ? "selected" : "");
+      html += R"rawliteral(>🚀 Both (Web + MQTT)</option>
     </select>
 
     <div id='mqtt_fields' class='hidden' style='background: #fff3e0; padding: 10px; border-radius: 8px; margin-top:10px; border:1px solid #ffe0b2;'>
@@ -245,7 +250,9 @@ button:active { transform: scale(0.98); }
                 <input name='mqtt_pass' id='mqtt_pass' type='password' value=')rawliteral";
                 html += htmlEscape(config.mqttPassword);
                 html += R"rawliteral('>
-                <span class="pwd-toggle" onclick="toggleVis('mqtt_pass')">👁</span>
+                <span class="pwd-toggle" onclick="toggleVis('mqtt_pass')">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                </span>
             </div>
         </div>
       </div>
@@ -300,9 +307,10 @@ initSnow(); draw();
     server.on("/config", HTTP_POST, [](AsyncWebServerRequest *request) {
         config.wifiSSID = request->arg("ssid");
         config.wifiPassword = request->arg("pass");
-        config.mqttEnabled = (request->arg("mqtt_enabled") == "true");
-        config.mqttServer = request->arg("mqtt_url");
         
+        config.workMode = request->arg("work_mode").toInt(); // 0, 1, or 2
+        
+        config.mqttServer = request->arg("mqtt_url");
         int port = request->arg("mqtt_port").toInt();
         config.mqttPort = (port > 0) ? port : 1883;
 

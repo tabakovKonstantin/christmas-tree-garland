@@ -263,34 +263,40 @@ String processor(const String& var, LedControl& led) {
     return String();
 }
 
-void WebControlManager::setup(AsyncWebServer& server) {
-    // Use send_P with processor for memory efficiency and reliability
-    server.on("/", HTTP_GET, [this](AsyncWebServerRequest *request) {
-        request->send_P(200, "text/html", INDEX_HTML, 
-            [this](const String& var) { 
-                return processor(var, this->ledControl); 
-            }
-        );
-    });
+void WebControlManager::setup(AsyncWebServer& server, bool fullUI) {
+    if (fullUI) {
+        // Use send_P with processor for memory efficiency and reliability
+        server.on("/", HTTP_GET, [this](AsyncWebServerRequest *request) {
+            request->send_P(200, "text/html", INDEX_HTML, 
+                [this](const String& var) { 
+                    return processor(var, this->ledControl); 
+                }
+            );
+        });
 
-    server.on("/api/set", HTTP_POST, 
-        [](AsyncWebServerRequest *request) {
-            request->send(200, "application/json", "{\"status\":\"ok\"}");
-        },
-        NULL,
-        [this](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
-            static String jsonBuffer;
-            if (index == 0) jsonBuffer = "";
-            for (size_t i = 0; i < len; i++) jsonBuffer += (char)data[i];
-            if (index + len == total) {
-                Serial.print("API: "); Serial.println(jsonBuffer);
-                Payload incoming;
-                if (incoming.fromJson(jsonBuffer)) {
-                    this->ledControl.changeState(incoming);
+        server.on("/api/set", HTTP_POST, 
+            [](AsyncWebServerRequest *request) {
+                request->send(200, "application/json", "{\"status\":\"ok\"}");
+            },
+            NULL,
+            [this](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+                static String jsonBuffer;
+                if (index == 0) jsonBuffer = "";
+                for (size_t i = 0; i < len; i++) jsonBuffer += (char)data[i];
+                if (index + len == total) {
+                    Serial.print("API: "); Serial.println(jsonBuffer);
+                    Payload incoming;
+                    if (incoming.fromJson(jsonBuffer)) {
+                        this->ledControl.changeState(incoming);
+                    }
                 }
             }
-        }
-    );
+        );
+    } else {
+        server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
+            request->send(200, "text/html", "<h1>MQTT Only Mode</h1><p><a href='/reset_conf'>Reset Network Settings</a></p>");
+        });
+    }
     
     server.on("/reset_conf", HTTP_GET, [](AsyncWebServerRequest *request){
         ConfigManager::eraseConfig();
