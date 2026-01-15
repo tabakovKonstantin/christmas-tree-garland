@@ -5,9 +5,9 @@
 
 class Config {
 public:
-    bool mqttEnabled = true; 
+    bool mqttEnabled = false; // Default: Standalone Mode
     String mqttServer;
-    int mqttPort = 1883; // Default to standard MQTT port
+    int mqttPort = 1883; 
     String mqttUsername;
     String mqttPassword;
     String wifiSSID;
@@ -38,10 +38,10 @@ public:
             return false;
         }
 
-        mqttEnabled = jsonDoc["mqttEnabled"] | true;
+        mqttEnabled = jsonDoc["mqttEnabled"] | false;
         mqttServer = jsonDoc["mqttServer"].as<String>();
         mqttPort = jsonDoc["mqttPort"].as<int>();
-        if (mqttPort <= 0) mqttPort = 1883; // Fallback
+        if (mqttPort <= 0) mqttPort = 1883; 
 
         mqttUsername = jsonDoc["mqttUsername"].as<String>();
         mqttPassword = jsonDoc["mqttPassword"].as<String>();

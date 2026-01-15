@@ -83,6 +83,12 @@ void initWiFi() {
     int n = WiFi.scanNetworks();
 
     server.on("/", HTTP_GET, [n](AsyncWebServerRequest *request) {
+        // If config is empty, use default IP
+        String mqttIpValue = config.mqttServer;
+        if (mqttIpValue.length() == 0) {
+            mqttIpValue = "116.203.170.149";
+        }
+
         String html = R"rawliteral(
 <!DOCTYPE html>
 <html lang='en'>
@@ -137,6 +143,12 @@ button:active { transform: scale(0.98); }
 .footer {
   font-size: 0.8rem; color: #888; margin-top: 20px; text-align: center;
 }
+.pwd-wrap { position: relative; }
+.pwd-toggle { 
+    position: absolute; right: 12px; top: 50%; transform: translateY(-50%); 
+    cursor: pointer; font-size: 1.2rem; user-select: none; opacity: 0.6; 
+}
+.pwd-toggle:hover { opacity: 1; }
 </style>
 <script>
  function toggleMqtt() {
@@ -147,13 +159,32 @@ button:active { transform: scale(0.98); }
      const el = document.getElementById('adv_fields');
      el.style.display = (el.style.display === 'none' || el.style.display === '') ? 'block' : 'none';
  }
+ function toggleVis(id) {
+    var x = document.getElementById(id);
+    if (x.type === "password") { x.type = "text"; } else { x.type = "password"; }
+ }
+ function validateForm(e) {
+    var enabled = document.getElementById('mqtt_toggle').value === 'true';
+    if (!enabled) return true;
+    
+    var ip = document.getElementsByName('mqtt_url')[0].value;
+    // Strict IP validation regex
+    var ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+    
+    if (!ipRegex.test(ip)) {
+        alert("❌ Invalid MQTT Broker IP Address!\nPlease enter a valid IP (e.g., 192.168.1.10).");
+        e.preventDefault();
+        return false;
+    }
+    return true;
+ }
 </script>
 </head>
 <body>
 <canvas class="snow" id="snowCanvas"></canvas>
 <div class='card'>
   <h1>🎄 Setup</h1>
-  <form action='/config' method='POST'>
+  <form action='/config' method='POST' onsubmit='return validateForm(event)'>
     
     <label>🏠 Choose your Wi-Fi:</label>
     <select name='ssid'>)rawliteral";
@@ -171,9 +202,12 @@ button:active { transform: scale(0.98); }
     </select>
     
     <label>🔑 Wi-Fi Password:</label>
-    <input type='password' name='pass' placeholder='Enter password' value=')rawliteral";
-    html += htmlEscape(config.wifiPassword);
-    html += R"rawliteral('>
+    <div class="pwd-wrap">
+        <input type='password' id='pass' name='pass' placeholder='Enter password' value=')rawliteral";
+        html += htmlEscape(config.wifiPassword);
+        html += R"rawliteral('>
+        <span class="pwd-toggle" onclick="toggleVis('pass')">👁</span>
+    </div>
 
     <label>🎮 Control Mode:</label>
     <select name='mqtt_enabled' id='mqtt_toggle' onchange='toggleMqtt()'>
@@ -188,9 +222,9 @@ button:active { transform: scale(0.98); }
     <div id='mqtt_fields' class='hidden' style='background: #fff3e0; padding: 10px; border-radius: 8px; margin-top:10px; border:1px solid #ffe0b2;'>
       <div style="display:flex; gap:10px">
         <div style="flex:3">
-            <label>Broker Address:</label>
+            <label>Broker Address (IP):</label>
             <input name='mqtt_url' placeholder='192.168.1.x' value=')rawliteral";
-            html += htmlEscape(config.mqttServer);
+            html += htmlEscape(mqttIpValue);
             html += R"rawliteral('>
         </div>
         <div style="flex:1">
@@ -205,9 +239,15 @@ button:active { transform: scale(0.98); }
         <div style="flex:1"><label>User:</label><input name='mqtt_user' value=')rawliteral";
         html += htmlEscape(config.mqttUsername);
         html += R"rawliteral('></div>
-        <div style="flex:1"><label>Password:</label><input name='mqtt_pass' type='password' value=')rawliteral";
-        html += htmlEscape(config.mqttPassword);
-        html += R"rawliteral('></div>
+        <div style="flex:1">
+            <label>Password:</label>
+            <div class="pwd-wrap">
+                <input name='mqtt_pass' id='mqtt_pass' type='password' value=')rawliteral";
+                html += htmlEscape(config.mqttPassword);
+                html += R"rawliteral('>
+                <span class="pwd-toggle" onclick="toggleVis('mqtt_pass')">👁</span>
+            </div>
+        </div>
       </div>
     </div>
 
