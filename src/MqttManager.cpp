@@ -187,7 +187,9 @@ void MqttManager::publishDiscoveryMessage()
     effectList.add("Sparkle");
     effectList.add("Stranger Things");
     effectList.add("Halloween Flame");
-    effectList.add("Finland Flag");
+    effectList.add("Turkey Flag");
+    effectList.add("Russia Flag");
+    effectList.add("Chile Flag");
 
     doc["schema"] = "json";
     // В discovery не указываем optimistic режим —

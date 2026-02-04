@@ -105,7 +105,9 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 <option value="Sparkle">✨ Sparkle</option>
                 <option value="Stranger Things">👽 Stranger Things</option>
                 <option value="Halloween Flame">🔥 Fire / Flame</option>
-                <option value="Finland Flag">🇫🇮 Finland Flag</option>
+                <option value="Turkey Flag">🇹🇷 Turkey Flag</option>
+                <option value="Russia Flag">🇷🇺 Russia Flag</option>
+                <option value="Chile Flag">🇨🇱 Chile Flag</option>
             </select>
         </div>
         

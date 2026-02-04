@@ -7,7 +7,9 @@
 #include "SmoothWaveEffect.h"
 #include "StrangerThingsEffect.h"
 #include "FireEffect.h"
-#include "FinlandFlagEffect.h"
+#include "TurkeyFlagEffect.h"
+#include "RussiaFlagEffect.h"
+#include "ChileFlagEffect.h"
 
 class EffectFactory
 {
@@ -39,9 +41,19 @@ public:
             return new FireEffect();
         }
 
-        if (effectName == "Finland Flag")
+        if (effectName == "Turkey Flag")
         {
-            return new FinlandFlagEffect();
+            return new TurkeyFlagEffect();
+        }
+
+        if (effectName == "Russia Flag")
+        {
+            return new RussiaFlagEffect();
+        }
+
+        if (effectName == "Chile Flag")
+        {
+            return new ChileFlagEffect();
         }
 
         return nullptr;
