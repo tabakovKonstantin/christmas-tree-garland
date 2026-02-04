@@ -7,6 +7,7 @@
 #include "SmoothWaveEffect.h"
 #include "StrangerThingsEffect.h"
 #include "FireEffect.h"
+#include "FinlandFlagEffect.h"
 
 class EffectFactory
 {
@@ -36,6 +37,11 @@ public:
         if (effectName == "Halloween Flame")
         {
             return new FireEffect();
+        }
+
+        if (effectName == "Finland Flag")
+        {
+            return new FinlandFlagEffect();
         }
 
         return nullptr;
